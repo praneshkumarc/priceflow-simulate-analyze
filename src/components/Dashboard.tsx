@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { dataService } from '@/services/dataService';
 import DataCollectionTab from './tabs/DataCollectionTab';
 import SalesAnalysisTab from './tabs/SalesAnalysisTab';
