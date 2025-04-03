@@ -15,7 +15,9 @@ import {
   PolarAngleAxis,
   PolarRadiusAxis,
   Radar,
-  Legend
+  Legend,
+  LineChart,
+  Line
 } from 'recharts';
 import { dataService } from '@/services/dataService';
 import { Product, PricePrediction } from '@/types';
