@@ -1,4 +1,3 @@
-
 // Product Data Types
 export interface Product {
   id: string;
@@ -8,6 +7,18 @@ export interface Product {
   inventory: number;
   cost: number;
   seasonality: number; // 0-1 value indicating seasonality impact
+  specifications?: Record<string, any>; // For storing additional specs
+}
+
+export interface SmartphoneProduct extends Product {
+  specifications: {
+    ram: string; // e.g., "4GB", "8GB"
+    processor: string; // e.g., "Snapdragon 888", "A15 Bionic"
+    storage: string; // e.g., "64GB", "128GB"
+    display: string; // e.g., "6.1 inch OLED"
+    camera: string; // e.g., "12MP dual camera"
+    battery: string; // e.g., "4000mAh"
+  };
 }
 
 export interface ProductSale {
@@ -78,4 +89,26 @@ export interface PricePrediction {
   optimalPrice: number;
   confidence: number;
   factors: PriceFactors;
+}
+
+// Data processing types
+export interface DatasetUpload {
+  id: string;
+  name: string;
+  dateUploaded: string;
+  status: 'pending' | 'processing' | 'completed' | 'error';
+  rowCount: number;
+  productCount: number;
+}
+
+export interface MLModelParams {
+  learningRate: number;
+  epochs: number;
+  features: string[];
+  targetVariable: string;
+}
+
+export interface FeatureImportance {
+  feature: string;
+  importance: number;
 }
