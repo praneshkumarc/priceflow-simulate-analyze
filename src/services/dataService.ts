@@ -43,6 +43,90 @@ class DataService {
     this.generateCompetitorPrices();
   }
   
+  // New method to add a single product
+  public addNewProduct(product: Product, competitorPrice?: number): void {
+    // Add the new product
+    this.products.push(product);
+    
+    // Generate sales data for this product
+    this.generateSalesDataForProduct(product);
+    
+    // Add competitor price if provided, otherwise generate one
+    if (competitorPrice !== undefined) {
+      const competitors = ['CompetitorA', 'CompetitorB', 'CompetitorC'];
+      competitors.forEach(competitor => {
+        // Add slight variation for each competitor
+        const variation = (Math.random() * 0.1) - 0.05; // -5% to +5%
+        const price = competitorPrice * (1 + variation);
+        
+        this.competitorPrices.push({
+          productId: product.id,
+          competitorName: competitor,
+          price: Math.round(price * 100) / 100,
+          date: new Date().toISOString().split('T')[0]
+        });
+      });
+    } else {
+      // Generate standard competitor prices if not provided
+      this.generateCompetitorPricesForProduct(product);
+    }
+  }
+  
+  // New method to add a category
+  public addCategory(category: Category): void {
+    this.categories.push(category);
+  }
+  
+  // Generate sales data for a specific product
+  private generateSalesDataForProduct(product: Product): void {
+    const now = new Date();
+    
+    // Generate between 5-15 sales for the new product
+    const salesCount = Math.floor(Math.random() * 10) + 5;
+    
+    for (let i = 0; i < salesCount; i++) {
+      // Random date in the last 30 days (new products have more recent sales)
+      const date = new Date();
+      date.setDate(now.getDate() - Math.floor(Math.random() * 30));
+      
+      // Random quantity between 1-5
+      const quantity = Math.floor(Math.random() * 5) + 1;
+      
+      // Price with minor variations around the base price
+      const variation = (Math.random() * 0.1) - 0.05; // -5% to +5%
+      const price = product.basePrice * (1 + variation);
+      
+      this.sales.push({
+        id: `sale-${this.sales.length + 1}`,
+        productId: product.id,
+        date: date.toISOString().split('T')[0],
+        quantity,
+        price: Math.round(price * 100) / 100
+      });
+    }
+    
+    // Sort by date, newest first
+    this.sales.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }
+  
+  // Generate competitor prices for a specific product
+  private generateCompetitorPricesForProduct(product: Product): void {
+    const competitors = ['CompetitorA', 'CompetitorB', 'CompetitorC'];
+    
+    competitors.forEach(competitor => {
+      // Random variation from product's base price
+      const variation = (Math.random() * 0.2) - 0.1; // -10% to +10%
+      const price = product.basePrice * (1 + variation);
+      
+      this.competitorPrices.push({
+        productId: product.id,
+        competitorName: competitor,
+        price: Math.round(price * 100) / 100,
+        date: new Date().toISOString().split('T')[0]
+      });
+    });
+  }
+  
   // Generate sample sales data for the new products
   private generateSalesData(): void {
     this.sales = [];
