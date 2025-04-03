@@ -1,14 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { TabsContent } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { dataService } from '@/services/dataService';
-import { Product, ProductSale, CompetitorPrice } from '@/types';
+import { Product, ProductSale, CompetitorPrice, SmartphoneProduct } from '@/types';
 import { formatCurrency, formatDate } from '@/utils/formatters';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import MetricCard from '../MetricCard';
 import { Database, ShoppingBag, Package, LineChart } from 'lucide-react';
+import DatasetUploader from '../DatasetUploader';
 
 const DataCollectionTab: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -37,6 +37,16 @@ const DataCollectionTab: React.FC = () => {
     fetchData();
   }, []);
   
+  const handleDatasetProcessed = (data: SmartphoneProduct[]) => {
+    // Update the dataService with the new products
+    dataService.updateProducts(data);
+    
+    // Refresh the UI with the new data
+    setProducts(dataService.getAllProducts());
+    setSales(dataService.getAllSales());
+    setTopSellers(dataService.getTopSellingProducts(5));
+  };
+  
   const totalProducts = products.length;
   const totalSales = sales.reduce((sum, sale) => sum + sale.quantity, 0);
   const totalRevenue = sales.reduce((sum, sale) => sum + (sale.price * sale.quantity), 0);
@@ -51,6 +61,8 @@ const DataCollectionTab: React.FC = () => {
   
   return (
     <div className="space-y-6">
+      <DatasetUploader onDatasetProcessed={handleDatasetProcessed} />
+      
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <MetricCard
           title="Total Products"

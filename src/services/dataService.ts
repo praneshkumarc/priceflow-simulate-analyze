@@ -8,7 +8,8 @@ import {
   PricePrediction,
   SimulationParams,
   SimulationResult,
-  SalesTrend
+  SalesTrend,
+  SmartphoneProduct
 } from "@/types";
 import { initializeMockData } from "./mockData";
 
@@ -28,6 +29,77 @@ class DataService {
     this.sales = mockData.sales;
     this.competitorPrices = mockData.competitorPrices;
     this.categories = mockData.categories;
+  }
+  
+  // Method to update products with uploaded data
+  public updateProducts(newProducts: Product[]): void {
+    // Replace the existing products with the new ones
+    this.products = [...newProducts];
+    
+    // Generate new sales data based on the new products
+    this.generateSalesData();
+    
+    // Generate new competitor prices
+    this.generateCompetitorPrices();
+  }
+  
+  // Generate sample sales data for the new products
+  private generateSalesData(): void {
+    this.sales = [];
+    
+    // For each product, generate some sample sales over the last 90 days
+    this.products.forEach(product => {
+      const now = new Date();
+      
+      // Generate between 10-30 sales per product
+      const salesCount = Math.floor(Math.random() * 20) + 10;
+      
+      for (let i = 0; i < salesCount; i++) {
+        // Random date in the last 90 days
+        const date = new Date();
+        date.setDate(now.getDate() - Math.floor(Math.random() * 90));
+        
+        // Random quantity between 1-10
+        const quantity = Math.floor(Math.random() * 10) + 1;
+        
+        // Price with minor variations around the base price
+        const variation = (Math.random() * 0.2) - 0.1; // -10% to +10%
+        const price = product.basePrice * (1 + variation);
+        
+        this.sales.push({
+          id: `sale-${this.sales.length + 1}`,
+          productId: product.id,
+          date: date.toISOString().split('T')[0],
+          quantity,
+          price: Math.round(price * 100) / 100
+        });
+      }
+    });
+    
+    // Sort by date, newest first
+    this.sales.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }
+  
+  // Generate sample competitor prices
+  private generateCompetitorPrices(): void {
+    this.competitorPrices = [];
+    
+    const competitors = ['CompetitorA', 'CompetitorB', 'CompetitorC'];
+    
+    this.products.forEach(product => {
+      competitors.forEach(competitor => {
+        // Random variation from product's base price
+        const variation = (Math.random() * 0.3) - 0.15; // -15% to +15%
+        const price = product.basePrice * (1 + variation);
+        
+        this.competitorPrices.push({
+          productId: product.id,
+          competitorName: competitor,
+          price: Math.round(price * 100) / 100,
+          date: new Date().toISOString().split('T')[0]
+        });
+      });
+    });
   }
   
   // Product methods
@@ -233,12 +305,15 @@ class DataService {
     // Convert to array of products with revenue
     const productsWithRevenue = Object.entries(productTotals).map(([productId, data]) => {
       const product = this.getProductById(productId);
+      if (!product) {
+        return null;
+      }
       return {
-        product: product!,
+        product,
         revenue: Math.round(data.revenue * 100) / 100,
         units: data.units
       };
-    });
+    }).filter(item => item !== null) as { product: Product; revenue: number; units: number }[];
     
     // Sort by revenue and return top N
     return productsWithRevenue

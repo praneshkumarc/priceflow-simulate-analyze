@@ -1,8 +1,6 @@
 
 import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card } from '@/components/ui/card';
-import { dataService } from '@/services/dataService';
 import { TooltipProvider } from "@/components/ui/tooltip";
 import DataCollectionTab from './tabs/DataCollectionTab';
 import SalesAnalysisTab from './tabs/SalesAnalysisTab';

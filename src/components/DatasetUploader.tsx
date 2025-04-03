@@ -142,7 +142,9 @@ const DatasetUploader: React.FC<DatasetUploaderProps> = ({ onDatasetProcessed })
           storage: item.Specifications?.Storage || '64GB',
           display: `${item.Specifications?.['Display Hz'] || '60'}Hz`,
           camera: `${item.Specifications?.['Camera MP'] || '12'}MP`,
-          battery: item.Specifications?.['Battery Capacity'] || '3000mAh'
+          battery: item.Specifications?.['Battery Capacity'] || '3000mAh',
+          os: item.Specifications?.OS || 'Unknown',
+          color: item.Specifications?.Color || 'Unknown'
         }
       }));
 
