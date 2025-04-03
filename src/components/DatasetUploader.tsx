@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Upload, FileCheck, AlertTriangle } from "lucide-react";
-import { DatasetUpload } from '@/types';
+import { DatasetUpload, SmartphoneProduct } from '@/types';
 import { toast } from '@/hooks/use-toast';
 
 interface DatasetUploaderProps {
@@ -17,11 +17,16 @@ const DatasetUploader: React.FC<DatasetUploaderProps> = ({ onDatasetProcessed })
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadHistory, setUploadHistory] = useState<DatasetUpload[]>([]);
+  const [jsonInput, setJsonInput] = useState<string>('');
   
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0]);
     }
+  };
+
+  const handleJsonInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setJsonInput(e.target.value);
   };
   
   const processCSV = (text: string) => {
@@ -38,6 +43,25 @@ const DatasetUploader: React.FC<DatasetUploaderProps> = ({ onDatasetProcessed })
         }, {});
       });
       
+      // Transform data into SmartphoneProduct format
+      const transformedData = data.map((item: any, index) => ({
+        id: `sp-${index + 1}`,
+        name: `${item.Brand || 'Unknown'} ${item.Model || `Phone ${index + 1}`}`,
+        basePrice: Number(item.Price) || 0,
+        category: item.Category || 'Smartphone',
+        inventory: Number(item.Stock) || 0,
+        cost: Number(item['Original Price']) || 0,
+        seasonality: (Number(item['Seasonal Effect']) || 5) / 10,
+        specifications: {
+          ram: item.RAM || item.Specifications?.RAM || '4GB',
+          processor: item['Processor Type'] || item.Specifications?.['Processor Type'] || 'Unknown',
+          storage: item.Storage || item.Specifications?.Storage || '64GB',
+          display: `${item['Display Hz'] || item.Specifications?.['Display Hz'] || '60'}Hz`,
+          camera: `${item['Camera MP'] || item.Specifications?.['Camera MP'] || '12'}MP`,
+          battery: item['Battery Capacity'] || item.Specifications?.['Battery Capacity'] || '3000mAh'
+        }
+      }));
+      
       // Create a new entry for upload history
       const newUpload: DatasetUpload = {
         id: Date.now().toString(),
@@ -45,7 +69,7 @@ const DatasetUploader: React.FC<DatasetUploaderProps> = ({ onDatasetProcessed })
         dateUploaded: new Date().toISOString(),
         status: 'completed',
         rowCount: data.length,
-        productCount: new Set(data.map((item: any) => item.productId || item.id)).size
+        productCount: data.length
       };
       
       setUploadHistory(prev => [newUpload, ...prev]);
@@ -56,9 +80,9 @@ const DatasetUploader: React.FC<DatasetUploaderProps> = ({ onDatasetProcessed })
       });
       
       // Pass processed data to parent component
-      onDatasetProcessed(data);
+      onDatasetProcessed(transformedData);
       
-      return data;
+      return transformedData;
     } catch (error) {
       console.error("Error processing CSV:", error);
       toast({
@@ -71,6 +95,93 @@ const DatasetUploader: React.FC<DatasetUploaderProps> = ({ onDatasetProcessed })
       const errorUpload: DatasetUpload = {
         id: Date.now().toString(),
         name: file?.name || 'Unknown dataset',
+        dateUploaded: new Date().toISOString(),
+        status: 'error',
+        rowCount: 0,
+        productCount: 0
+      };
+      
+      setUploadHistory(prev => [errorUpload, ...prev]);
+      return null;
+    }
+  };
+
+  const processJsonInput = () => {
+    try {
+      // Try to parse the JSON input
+      let jsonData;
+      
+      // Check if input is an array or single object
+      try {
+        jsonData = JSON.parse(jsonInput);
+        // If it's a single object, wrap it in an array
+        if (!Array.isArray(jsonData)) {
+          jsonData = [jsonData];
+        }
+      } catch (e) {
+        // Try to parse as a single object by adding square brackets
+        try {
+          jsonData = JSON.parse(`[${jsonInput}]`);
+        } catch (e2) {
+          throw new Error("Invalid JSON format");
+        }
+      }
+      
+      // Transform data into SmartphoneProduct format
+      const transformedData = jsonData.map((item: any, index) => ({
+        id: `sp-${index + 1}`,
+        name: `${item.Brand || 'Unknown'} ${item.Model || `Phone ${index + 1}`}`,
+        basePrice: Number(item.Price) || 0,
+        category: item.Category || 'Smartphone',
+        inventory: Number(item.Stock) || 0,
+        cost: Number(item['Original Price']) || 0,
+        seasonality: (Number(item['Seasonal Effect']) || 5) / 10,
+        specifications: {
+          ram: item.Specifications?.RAM || '4GB',
+          processor: item.Specifications?.['Processor Type'] || 'Unknown',
+          storage: item.Specifications?.Storage || '64GB',
+          display: `${item.Specifications?.['Display Hz'] || '60'}Hz`,
+          camera: `${item.Specifications?.['Camera MP'] || '12'}MP`,
+          battery: item.Specifications?.['Battery Capacity'] || '3000mAh'
+        }
+      }));
+
+      // Create a new entry for upload history
+      const newUpload: DatasetUpload = {
+        id: Date.now().toString(),
+        name: 'JSON Input',
+        dateUploaded: new Date().toISOString(),
+        status: 'completed',
+        rowCount: transformedData.length,
+        productCount: transformedData.length
+      };
+      
+      setUploadHistory(prev => [newUpload, ...prev]);
+      
+      toast({
+        title: "Dataset successfully processed",
+        description: `Processed ${transformedData.length} records`,
+      });
+      
+      // Pass processed data to parent component
+      onDatasetProcessed(transformedData);
+      
+      // Clear JSON input
+      setJsonInput('');
+      
+      return transformedData;
+    } catch (error) {
+      console.error("Error processing JSON:", error);
+      toast({
+        title: "Error processing JSON data",
+        description: "There was an error parsing the JSON data. Please check the format and try again.",
+        variant: "destructive",
+      });
+      
+      // Add error entry to history
+      const errorUpload: DatasetUpload = {
+        id: Date.now().toString(),
+        name: 'JSON Input',
         dateUploaded: new Date().toISOString(),
         status: 'error',
         rowCount: 0,
@@ -129,6 +240,19 @@ const DatasetUploader: React.FC<DatasetUploaderProps> = ({ onDatasetProcessed })
       setIsUploading(false);
     }
   };
+
+  const handleSubmitJson = () => {
+    if (!jsonInput.trim()) {
+      toast({
+        title: "No data provided",
+        description: "Please enter JSON data to process.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    processJsonInput();
+  };
   
   return (
     <div className="space-y-6">
@@ -136,31 +260,73 @@ const DatasetUploader: React.FC<DatasetUploaderProps> = ({ onDatasetProcessed })
         <CardHeader>
           <CardTitle>Upload Your Dataset</CardTitle>
           <CardDescription>
-            Upload a CSV file containing your product data. The file should include product specifications,
-            historical prices, and sales data.
+            Upload a CSV file containing your product data or paste JSON data.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-4">
-            <Input 
-              type="file" 
-              accept=".csv" 
-              onChange={handleFileChange}
-              disabled={isUploading}
+        <CardContent className="space-y-6">
+          <div>
+            <h3 className="text-lg font-medium mb-2">Option 1: Upload CSV File</h3>
+            <div className="flex items-center gap-4">
+              <Input 
+                type="file" 
+                accept=".csv" 
+                onChange={handleFileChange}
+                disabled={isUploading}
+              />
+              <Button 
+                onClick={handleUpload} 
+                disabled={!file || isUploading}
+                className="flex items-center gap-2"
+              >
+                {isUploading ? "Processing..." : "Upload"} <Upload className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+          
+          <div>
+            <h3 className="text-lg font-medium mb-2">Option 2: Paste JSON Data</h3>
+            <textarea
+              className="w-full h-64 border rounded-md p-3 font-mono text-sm"
+              placeholder={`Paste your JSON data here, e.g.:
+{
+  "Brand": "Apple",
+  "Model": "iPhone SE (3rd Gen)",
+  "Price": "522",
+  "Original Price": "345",
+  "Stock": 41,
+  "Category": "Mid Range",
+  "Specifications": {
+    "Storage": "512GB",
+    "RAM": "6GB",
+    "Processor Type": "A16 Bionic",
+    "Display Hz": 120,
+    "Camera MP": 48,
+    "Battery Capacity": "4323mAh",
+    "OS": "iOS 16",
+    "Color": "Silver"
+  },
+  "Month of Sale": "August",
+  "Seasonal Effect": 8,
+  "Competitor Price": 508.3,
+  "Demand Level": 5
+}`}
+              value={jsonInput}
+              onChange={handleJsonInputChange}
             />
             <Button 
-              onClick={handleUpload} 
-              disabled={!file || isUploading}
-              className="flex items-center gap-2"
+              onClick={handleSubmitJson} 
+              disabled={!jsonInput.trim()}
+              className="mt-2"
             >
-              {isUploading ? "Processing..." : "Upload"} <Upload className="h-4 w-4" />
+              Process JSON Data
             </Button>
           </div>
           
-          <Alert className="mt-4">
+          <Alert>
             <AlertDescription>
-              File must be in CSV format with headers. Required columns: name, basePrice, category, 
-              specifications (JSON format for RAM, processor, etc.)
+              For CSV files: Required columns include Brand, Model, Price, Original Price, Stock, Category, and Specifications columns.
+              <br />
+              For JSON: Format should match the example in the placeholder.
             </AlertDescription>
           </Alert>
         </CardContent>

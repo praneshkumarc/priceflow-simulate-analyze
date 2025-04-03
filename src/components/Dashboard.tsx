@@ -8,8 +8,7 @@ import DataCollectionTab from './tabs/DataCollectionTab';
 import SalesAnalysisTab from './tabs/SalesAnalysisTab';
 import PricePredictionTab from './tabs/PricePredictionTab';
 import DiscountSimulationTab from './tabs/DiscountSimulationTab';
-import SmartphoneDataTab from './tabs/SmartphoneDataTab';
-import { Database, BarChart, LineChart, Percent, Smartphone } from 'lucide-react';
+import { Database, BarChart, LineChart, Percent } from 'lucide-react';
 
 const Dashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState('data-collection');
@@ -51,10 +50,6 @@ const Dashboard: React.FC = () => {
                   <Percent className="h-4 w-4 hidden md:inline" />
                   Discount Simulation
                 </TabsTrigger>
-                <TabsTrigger value="smartphone-data" className="px-4 md:px-6 flex items-center gap-1">
-                  <Smartphone className="h-4 w-4 hidden md:inline" />
-                  Smartphone ML
-                </TabsTrigger>
               </TabsList>
             </div>
             
@@ -72,10 +67,6 @@ const Dashboard: React.FC = () => {
             
             <TabsContent value="discount-simulation" className="space-y-6">
               <DiscountSimulationTab />
-            </TabsContent>
-            
-            <TabsContent value="smartphone-data" className="space-y-6">
-              <SmartphoneDataTab />
             </TabsContent>
           </Tabs>
         </main>

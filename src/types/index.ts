@@ -1,3 +1,4 @@
+
 // Product Data Types
 export interface Product {
   id: string;
@@ -15,9 +16,11 @@ export interface SmartphoneProduct extends Product {
     ram: string; // e.g., "4GB", "8GB"
     processor: string; // e.g., "Snapdragon 888", "A15 Bionic"
     storage: string; // e.g., "64GB", "128GB"
-    display: string; // e.g., "6.1 inch OLED"
-    camera: string; // e.g., "12MP dual camera"
+    display: string; // e.g., "6.1 inch OLED" or "120Hz"
+    camera: string; // e.g., "12MP dual camera" or "48MP"
     battery: string; // e.g., "4000mAh"
+    os?: string; // e.g., "iOS 16", "Android 13"
+    color?: string; // e.g., "Silver", "Midnight Black"
   };
 }
 
@@ -111,4 +114,28 @@ export interface MLModelParams {
 export interface FeatureImportance {
   feature: string;
   importance: number;
+}
+
+// Smartphone specific input data format
+export interface SmartphoneInputData {
+  Brand: string;
+  Model: string;
+  Price: string | number;
+  "Original Price": string | number;
+  Stock: number;
+  Category: string;
+  Specifications: {
+    Storage: string;
+    RAM: string;
+    "Processor Type": string;
+    "Display Hz": number;
+    "Camera MP": number;
+    "Battery Capacity": string;
+    OS?: string;
+    Color?: string;
+  };
+  "Month of Sale"?: string;
+  "Seasonal Effect"?: number;
+  "Competitor Price"?: number;
+  "Demand Level"?: number;
 }
