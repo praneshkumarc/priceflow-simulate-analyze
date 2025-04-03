@@ -15,7 +15,6 @@ const DataCollectionTab: React.FC = () => {
   const [sales, setSales] = useState<ProductSale[]>([]);
   const [loading, setLoading] = useState(true);
   const [topSellers, setTopSellers] = useState<{ product: Product; revenue: number; units: number }[]>([]);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
   
   useEffect(() => {
     // Load products and sales data
@@ -36,15 +35,7 @@ const DataCollectionTab: React.FC = () => {
     };
     
     fetchData();
-    
-    // Set up an interval to refresh data every 5 seconds
-    // This ensures the dashboard updates when products are added in other tabs
-    const intervalId = setInterval(() => {
-      setRefreshTrigger(prev => prev + 1);
-    }, 5000);
-    
-    return () => clearInterval(intervalId);
-  }, [refreshTrigger]);
+  }, []);
   
   const handleDatasetProcessed = (data: SmartphoneProduct[]) => {
     // Update the dataService with the new products

@@ -6,9 +6,7 @@ import DataCollectionTab from './tabs/DataCollectionTab';
 import SalesAnalysisTab from './tabs/SalesAnalysisTab';
 import PricePredictionTab from './tabs/PricePredictionTab';
 import DiscountSimulationTab from './tabs/DiscountSimulationTab';
-import ProductAdditionTab from './tabs/ProductAdditionTab';
-import CategoryCreationTab from './tabs/CategoryCreationTab';
-import { Database, BarChart, LineChart, Percent, Plus, TagsIcon } from 'lucide-react';
+import { Database, BarChart, LineChart, Percent } from 'lucide-react';
 
 const Dashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState('data-collection');
@@ -32,7 +30,7 @@ const Dashboard: React.FC = () => {
             onValueChange={setActiveTab}
             className="space-y-6"
           >
-            <div className="flex justify-between items-center overflow-x-auto">
+            <div className="flex justify-between items-center">
               <TabsList>
                 <TabsTrigger value="data-collection" className="px-4 md:px-6 flex items-center gap-1">
                   <Database className="h-4 w-4 hidden md:inline" />
@@ -49,14 +47,6 @@ const Dashboard: React.FC = () => {
                 <TabsTrigger value="discount-simulation" className="px-4 md:px-6 flex items-center gap-1">
                   <Percent className="h-4 w-4 hidden md:inline" />
                   Discount Simulation
-                </TabsTrigger>
-                <TabsTrigger value="product-addition" className="px-4 md:px-6 flex items-center gap-1">
-                  <Plus className="h-4 w-4 hidden md:inline" />
-                  Add Products
-                </TabsTrigger>
-                <TabsTrigger value="category-creation" className="px-4 md:px-6 flex items-center gap-1">
-                  <TagsIcon className="h-4 w-4 hidden md:inline" />
-                  Categories
                 </TabsTrigger>
               </TabsList>
             </div>
@@ -75,14 +65,6 @@ const Dashboard: React.FC = () => {
             
             <TabsContent value="discount-simulation" className="space-y-6">
               <DiscountSimulationTab />
-            </TabsContent>
-
-            <TabsContent value="product-addition" className="space-y-6">
-              <ProductAdditionTab />
-            </TabsContent>
-            
-            <TabsContent value="category-creation" className="space-y-6">
-              <CategoryCreationTab />
             </TabsContent>
           </Tabs>
         </main>
