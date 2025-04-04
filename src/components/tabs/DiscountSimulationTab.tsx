@@ -87,7 +87,10 @@ const DiscountSimulationTab: React.FC = () => {
       const storedPredictions = sessionStorage.getItem('predictedProducts');
       if (storedPredictions) {
         try {
-          const predictionsMap = new Map(JSON.parse(storedPredictions));
+          // Fix type issues by properly typing the parsed JSON
+          const parsedData = JSON.parse(storedPredictions);
+          // Ensure we're creating a properly typed Map
+          const predictionsMap = new Map<string, number>(parsedData as [string, number][]);
           const predList: PredictedProduct[] = [];
           
           // Combine with products to get IDs
@@ -97,7 +100,7 @@ const DiscountSimulationTab: React.FC = () => {
               predList.push({
                 id: matchedProduct.id,
                 name: modelName,
-                price: price as number
+                price: price
               });
             }
           }
