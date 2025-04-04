@@ -20,7 +20,7 @@ import {
   Line
 } from 'recharts';
 import { dataService } from '@/services/dataService';
-import { Product, PricePrediction, SmartphoneInputData } from '@/types';
+import { Product, PricePrediction, SmartphoneInputData, SupabaseProduct } from '@/types';
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
 import ProductSelect from '../ProductSelect';
 import { Slider } from "@/components/ui/slider";
@@ -65,12 +65,24 @@ const PricePredictionTab: React.FC = () => {
             
           if (error) throw error;
           
-          const userProducts = data;
-          setProducts(userProducts);
+          // Convert Supabase products to the application's Product type
+          const supabaseProducts = data || [];
+          const convertedProducts: Product[] = supabaseProducts.map((item: SupabaseProduct) => ({
+            id: item.id,
+            name: item.name,
+            basePrice: item.price,
+            category: item.category,
+            inventory: 10, // Default value
+            cost: item.price * 0.6, // Default value (60% of price)
+            seasonality: parseFloat(item.seasonality || "0.5"),
+            price: item.price // Keep the original price
+          }));
+          
+          setProducts(convertedProducts);
           
           // If there are products, select the first one by default
-          if (userProducts.length > 0) {
-            setSelectedProductId(userProducts[0].id);
+          if (convertedProducts.length > 0) {
+            setSelectedProductId(convertedProducts[0].id);
           }
         } catch (error) {
           console.error('Error fetching user products:', error);
@@ -106,7 +118,8 @@ const PricePredictionTab: React.FC = () => {
     const storedPredictions = sessionStorage.getItem('predictedProducts');
     if (storedPredictions) {
       try {
-        const predictionsMap = new Map(JSON.parse(storedPredictions));
+        const predictionsData = JSON.parse(storedPredictions);
+        const predictionsMap = new Map<string, number>(predictionsData);
         setPredictedProducts(predictionsMap);
       } catch (e) {
         console.error('Failed to parse stored predictions', e);
@@ -167,7 +180,7 @@ const PricePredictionTab: React.FC = () => {
         // Add our base price and optimal price for comparison
         avgCompPrices.push({
           name: "Our Base Price",
-          price: product.basePrice || parseFloat(product.price?.toString() || "0")
+          price: product.basePrice || (product.price || 0)
         });
         
         if (pricePred) {

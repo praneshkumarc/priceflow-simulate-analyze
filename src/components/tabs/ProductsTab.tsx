@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { dataService } from '@/services/dataService';
-import { SmartphoneInputData, Product } from '@/types';
+import { SmartphoneInputData, Product, SupabaseProduct } from '@/types';
 import { Loader2, Plus, Package, Check } from 'lucide-react';
 import { 
   Form, 
@@ -54,7 +54,7 @@ const ProductsTab: React.FC = () => {
       const dataset = dataService.getDataset();
       
       // Get products for current user only
-      let userProducts;
+      let userProducts: Product[] = [];
       if (user) {
         try {
           const { data, error } = await supabase
@@ -63,7 +63,19 @@ const ProductsTab: React.FC = () => {
             .eq('user_id', user.id);
             
           if (error) throw error;
-          userProducts = data;
+          
+          // Convert Supabase products to the application's Product type
+          const supabaseProducts = data || [];
+          userProducts = supabaseProducts.map((item: SupabaseProduct) => ({
+            id: item.id,
+            name: item.name,
+            basePrice: item.price,
+            category: item.category,
+            inventory: 10, // Default value
+            cost: item.price * 0.6, // Default value (60% of price)
+            seasonality: parseFloat(item.seasonality || "0.5"),
+            price: item.price // Keep the original price
+          }));
         } catch (error) {
           console.error('Error fetching user products:', error);
           userProducts = [];
@@ -73,7 +85,7 @@ const ProductsTab: React.FC = () => {
       }
       
       setDataset(dataset || []);
-      setProducts(userProducts || []);
+      setProducts(userProducts);
       
       if (dataset && dataset.length > 0) {
         // Get unique models instead of all entries
@@ -269,8 +281,20 @@ const ProductsTab: React.FC = () => {
         
       if (error) throw error;
       
-      // Update the products list with the new Supabase data
-      setProducts(prevProducts => [...prevProducts, data]);
+      // Convert the Supabase product to our application's Product type before adding to state
+      const convertedProduct: Product = {
+        id: data.id,
+        name: data.name,
+        basePrice: data.price,
+        category: data.category,
+        inventory: values.stock,
+        cost: parseFloat(values.price) * 0.6, // 60% of price as default cost
+        seasonality: values.seasonalEffect / 10,
+        price: data.price
+      };
+      
+      // Update the products list with the new product
+      setProducts(prevProducts => [...prevProducts, convertedProduct]);
       
       toast({
         title: "Product Added",

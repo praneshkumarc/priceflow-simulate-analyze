@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { dataService } from '@/services/dataService';
-import { Product, SimulationParams, SimulationResult } from '@/types';
+import { Product, SimulationParams, SimulationResult, SupabaseProduct } from '@/types';
 import { 
   LineChart, 
   Line, 
@@ -59,7 +59,21 @@ const DiscountSimulationTab: React.FC = () => {
             .eq('user_id', user.id);
             
           if (error) throw error;
-          setProducts(data || []);
+          
+          // Convert Supabase products to the application's Product type
+          const supabaseProducts = data || [];
+          const convertedProducts: Product[] = supabaseProducts.map((item: SupabaseProduct) => ({
+            id: item.id,
+            name: item.name,
+            basePrice: item.price,
+            category: item.category,
+            inventory: 10, // Default value
+            cost: item.price * 0.6, // Default value (60% of price)
+            seasonality: parseFloat(item.seasonality || "0.5"),
+            price: item.price // Keep the original price
+          }));
+          
+          setProducts(convertedProducts);
         } catch (error) {
           console.error('Error fetching products:', error);
           setProducts([]);
@@ -83,7 +97,7 @@ const DiscountSimulationTab: React.FC = () => {
               predList.push({
                 id: matchedProduct.id,
                 name: modelName,
-                price: price
+                price: price as number
               });
             }
           }

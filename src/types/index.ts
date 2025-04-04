@@ -1,4 +1,3 @@
-
 // Product Data Types
 export interface Product {
   id: string;
@@ -9,6 +8,7 @@ export interface Product {
   cost: number;
   seasonality: number; // 0-1 value indicating seasonality impact
   specifications?: Record<string, any>; // For storing additional specs
+  price?: number; // Added to support Supabase product structure
 }
 
 export interface SmartphoneProduct extends Product {
@@ -139,4 +139,21 @@ export interface SmartphoneInputData {
   "Competitor Price"?: number;
   "Demand Level"?: number;
   year_of_sale?: number; // Added this property
+}
+
+// SupabaseProduct represents the product as stored in Supabase
+export interface SupabaseProduct {
+  id: string;
+  name: string;
+  category: string;
+  price: number;
+  margin?: number;
+  sku: string;
+  seasonality?: string;
+  demand?: string;
+  trend?: string;
+  image_url?: string;
+  created_at: string;
+  updated_at: string;
+  user_id: string;
 }

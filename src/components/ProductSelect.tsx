@@ -47,7 +47,7 @@ export const ProductSelect: React.FC<ProductSelectProps> = ({
             <SelectLabel>{category}</SelectLabel>
             {products.map((product) => (
               <SelectItem key={product.id} value={product.id}>
-                {product.name} (${product.basePrice.toFixed(2)})
+                {product.name} (${(product.basePrice || product.price || 0).toFixed(2)})
               </SelectItem>
             ))}
           </SelectGroup>
