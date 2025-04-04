@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
@@ -15,6 +14,7 @@ import {
   Legend
 } from 'recharts';
 import { dataService } from '@/services/dataService';
+import { predictionService } from '@/services/predictionService';
 import { Product, SimulationParams, SimulationResult } from '@/types';
 import { formatCurrency, formatPercentage, formatNumber } from '@/utils/formatters';
 import ProductSelect from '../ProductSelect';
@@ -40,11 +40,16 @@ const DiscountSimulationTab: React.FC = () => {
   
   // For comparison
   const [compareMode, setCompareMode] = useState(false);
+  // Predicted prices
+  const [predictedPrices, setPredictedPrices] = useState<Record<string, number>>({});
   
   useEffect(() => {
     // Load products
     const allProducts = dataService.getAllProducts();
-    setProducts(allProducts);
+    // Filter to only include products with predictions
+    const productsWithPredictions = predictionService.getProductsWithPredictions(allProducts);
+    setProducts(productsWithPredictions);
+    setPredictedPrices(predictionService.getAllPredictedPrices());
     
     // Extract unique models from the dataset
     const dataset = dataService.getDataset();
@@ -53,9 +58,9 @@ const DiscountSimulationTab: React.FC = () => {
       setModels(uniqueModels);
     }
     
-    // If there are products, select the first one by default
-    if (allProducts.length > 0) {
-      setSelectedProductId(allProducts[0].id);
+    // If there are products with predictions, select the first one by default
+    if (productsWithPredictions.length > 0) {
+      setSelectedProductId(productsWithPredictions[0].id);
     }
     
     setLoading(false);
@@ -76,7 +81,13 @@ const DiscountSimulationTab: React.FC = () => {
   useEffect(() => {
     if (selectedModel) {
       const matchingProducts = dataService.getProductsByModel(selectedModel);
-      if (matchingProducts.length > 0) {
+      const productsWithPredictions = matchingProducts.filter(product => 
+        predictionService.hasPrediction(product.id)
+      );
+      
+      if (productsWithPredictions.length > 0) {
+        setSelectedProductId(productsWithPredictions[0].id);
+      } else if (matchingProducts.length > 0) {
         setSelectedProductId(matchingProducts[0].id);
       }
     }
@@ -179,15 +190,13 @@ const DiscountSimulationTab: React.FC = () => {
   // Get product options with predicted prices
   const getProductOptionsWithPredictions = () => {
     return products.map(product => {
-      const prediction = dataService.predictOptimalPrice(product.id);
-      const predictedPrice = prediction ? prediction.optimalPrice : product.basePrice;
+      const predictedPrice = predictedPrices[product.id] || product.basePrice;
       
       return {
         id: product.id,
         name: product.name,
         basePrice: product.basePrice,
         predictedPrice: predictedPrice,
-        // If has specifications and model, include it
         model: product.specifications?.model || ''
       };
     });
@@ -225,22 +234,14 @@ const DiscountSimulationTab: React.FC = () => {
                 
                 <div className="space-y-2">
                   <Label>Select Product</Label>
-                  <Select
-                    value={selectedProductId}
-                    onValueChange={setSelectedProductId}
-                    disabled={!products.length}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a Product" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {productOptions.map(option => (
-                        <SelectItem key={option.id} value={option.id}>
-                          {option.name} - {formatCurrency(option.predictedPrice)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <ProductSelect
+                    products={products}
+                    onProductSelect={setSelectedProductId}
+                    selectedProductId={selectedProductId}
+                    placeholder="Select a product with prediction"
+                    showPrices={false}
+                    predictedPrices={predictedPrices}
+                  />
                 </div>
               </div>
               

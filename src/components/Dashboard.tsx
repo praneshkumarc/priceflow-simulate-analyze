@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TooltipProvider } from "@/components/ui/tooltip";
 import DataCollectionTab from './tabs/DataCollectionTab';
@@ -8,9 +8,19 @@ import PricePredictionTab from './tabs/PricePredictionTab';
 import DiscountSimulationTab from './tabs/DiscountSimulationTab';
 import ProductsTab from './tabs/ProductsTab';
 import { Database, BarChart, LineChart, Percent, Package } from 'lucide-react';
+import { predictionService } from '@/services/predictionService';
 
 const Dashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState('data-collection');
+  
+  // Add effect to listen for tab changes and update prediction data
+  useEffect(() => {
+    if (activeTab === 'discount-simulation') {
+      // When going to discount simulation, ensure we have the latest predictions
+      const predictions = predictionService.getPredictedProducts();
+      console.log('Available predictions for discount simulation:', Object.keys(predictions).length);
+    }
+  }, [activeTab]);
   
   return (
     <TooltipProvider>
