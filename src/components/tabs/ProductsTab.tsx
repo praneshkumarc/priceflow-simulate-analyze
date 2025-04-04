@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { dataService } from '@/services/dataService';
-import { SmartphoneInputData, Product, SupabaseProduct } from '@/types';
+import { SmartphoneInputData, Product } from '@/types';
 import { Loader2, Plus, Package, Check } from 'lucide-react';
 import { 
   Form, 
@@ -21,18 +20,6 @@ import {
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-
-// Define dropdown options for specifications
-const PROCESSOR_OPTIONS = ["A15 Bionic", "A16 Bionic", "A17 Pro"];
-const RAM_OPTIONS = ["4GB", "6GB", "8GB"];
-const STORAGE_OPTIONS = ["128GB", "256GB", "512GB"];
-const DISPLAY_HZ_OPTIONS = [60, 120];
-const CAMERA_MP_OPTIONS = [12, 48];
-const BATTERY_OPTIONS = ["2018mAh", "3349mAh", "4323mAh"];
-const OS_OPTIONS = ["iOS 15", "iOS 16", "iOS 17"];
-const COLOR_OPTIONS = ["Midnight", "Silver", "Black Titanium", "Space Black", "Blue Titanium"];
 
 const ProductsTab: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -47,60 +34,24 @@ const ProductsTab: React.FC = () => {
   const [matchingSpecs, setMatchingSpecs] = useState<any>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const { toast } = useToast();
-  const { user } = useAuth();
 
   useEffect(() => {
-    const fetchData = async () => {
-      const dataset = dataService.getDataset();
-      
-      // Get products for current user only
-      let userProducts: Product[] = [];
-      if (user) {
-        try {
-          const { data, error } = await supabase
-            .from('products')
-            .select('*')
-            .eq('user_id', user.id);
-            
-          if (error) throw error;
-          
-          // Convert Supabase products to the application's Product type
-          const supabaseProducts = data || [];
-          userProducts = supabaseProducts.map((item: SupabaseProduct) => ({
-            id: item.id,
-            name: item.name,
-            basePrice: item.price,
-            category: item.category,
-            inventory: 10, // Default value
-            cost: item.price * 0.6, // Default value (60% of price)
-            seasonality: parseFloat(item.seasonality || "0.5"),
-            price: item.price // Keep the original price
-          }));
-        } catch (error) {
-          console.error('Error fetching user products:', error);
-          userProducts = [];
-        }
-      } else {
-        userProducts = dataService.getAllProducts();
-      }
-      
-      setDataset(dataset || []);
-      setProducts(userProducts);
-      
-      if (dataset && dataset.length > 0) {
-        // Get unique models instead of all entries
-        const brands = [...new Set(dataset.map(item => item.Brand))];
-        const models = [...new Set(dataset.map(item => item.Model))];
-        const categories = [...new Set(dataset.map(item => item.Category))];
-        
-        setUniqueBrands(brands);
-        setUniqueModels(models);
-        setUniqueCategories(categories);
-      }
-    };
+    const dataset = dataService.getDataset();
+    const allProducts = dataService.getAllProducts();
     
-    fetchData();
-  }, [user]);
+    setDataset(dataset || []);
+    setProducts(allProducts);
+    
+    if (dataset && dataset.length > 0) {
+      const brands = [...new Set(dataset.map(item => item.Brand))];
+      const models = [...new Set(dataset.map(item => item.Model))];
+      const categories = [...new Set(dataset.map(item => item.Category))];
+      
+      setUniqueBrands(brands);
+      setUniqueModels(models);
+      setUniqueCategories(categories);
+    }
+  }, []);
 
   useEffect(() => {
     if (selectedBrand && dataset) {
@@ -154,14 +105,14 @@ const ProductsTab: React.FC = () => {
       price: "",
       stock: 1,
       category: "",
-      storage: STORAGE_OPTIONS[0],
-      ram: RAM_OPTIONS[0],
-      processor: PROCESSOR_OPTIONS[0],
-      display: DISPLAY_HZ_OPTIONS[0],
-      camera: CAMERA_MP_OPTIONS[0],
-      battery: BATTERY_OPTIONS[0],
-      os: OS_OPTIONS[0],
-      color: COLOR_OPTIONS[0],
+      storage: "",
+      ram: "",
+      processor: "",
+      display: 60,
+      camera: 12,
+      battery: "",
+      os: "",
+      color: "",
       month: "January",
       seasonalEffect: 5,
       demandLevel: 5,
@@ -180,32 +131,15 @@ const ProductsTab: React.FC = () => {
         form.setValue("stock", matchingProduct.Stock || 10);
         form.setValue("category", matchingProduct.Category);
         
-        // Set defaults for spec dropdowns from matching product when available
         if (matchingSpecs) {
-          // For each spec, check if the value exists in our options, otherwise use default
-          const storage = matchingSpecs.Storage;
-          form.setValue("storage", STORAGE_OPTIONS.includes(storage) ? storage : STORAGE_OPTIONS[0]);
-          
-          const ram = matchingSpecs.RAM;
-          form.setValue("ram", RAM_OPTIONS.includes(ram) ? ram : RAM_OPTIONS[0]);
-          
-          const processor = matchingSpecs["Processor Type"];
-          form.setValue("processor", PROCESSOR_OPTIONS.includes(processor) ? processor : PROCESSOR_OPTIONS[0]);
-          
-          const display = matchingSpecs["Display Hz"];
-          form.setValue("display", DISPLAY_HZ_OPTIONS.includes(display) ? display : DISPLAY_HZ_OPTIONS[0]);
-          
-          const camera = matchingSpecs["Camera MP"];
-          form.setValue("camera", CAMERA_MP_OPTIONS.includes(camera) ? camera : CAMERA_MP_OPTIONS[0]);
-          
-          const battery = matchingSpecs["Battery Capacity"];
-          form.setValue("battery", BATTERY_OPTIONS.includes(battery) ? battery : BATTERY_OPTIONS[0]);
-          
-          const os = matchingSpecs.OS;
-          form.setValue("os", OS_OPTIONS.includes(os) ? os : OS_OPTIONS[0]);
-          
-          const color = matchingSpecs.Color;
-          form.setValue("color", COLOR_OPTIONS.includes(color) ? color : COLOR_OPTIONS[0]);
+          form.setValue("storage", matchingSpecs.Storage);
+          form.setValue("ram", matchingSpecs.RAM);
+          form.setValue("processor", matchingSpecs["Processor Type"]);
+          form.setValue("display", matchingSpecs["Display Hz"]);
+          form.setValue("camera", matchingSpecs["Camera MP"]);
+          form.setValue("battery", matchingSpecs["Battery Capacity"]);
+          form.setValue("os", matchingSpecs.OS || "");
+          form.setValue("color", matchingSpecs.Color || "");
         }
         
         if (matchingProduct["Month of Sale"]) {
@@ -224,94 +158,84 @@ const ProductsTab: React.FC = () => {
     }
   }, [selectedModel, selectedBrand, matchingSpecs, form, dataset]);
 
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    if (!user) {
+  const onSubmit = (values: z.infer<typeof formSchema>) => {
+    setLoading(true);
+    
+    const specsMatch = verifySpecifications(values);
+    
+    if (!specsMatch) {
       toast({
-        title: "Authentication Required",
-        description: "You need to be logged in to add products",
+        title: "Specifications Error",
+        description: "Specifications do not match existing products",
         variant: "destructive"
       });
+      setLoading(false);
       return;
     }
     
-    setLoading(true);
+    const newProduct: SmartphoneInputData = {
+      Brand: values.brand,
+      Model: values.model,
+      Price: values.price,
+      "Original Price": values.price,
+      Stock: values.stock,
+      Category: values.category,
+      Specifications: {
+        Storage: values.storage,
+        RAM: values.ram,
+        "Processor Type": values.processor,
+        "Display Hz": values.display,
+        "Camera MP": values.camera,
+        "Battery Capacity": values.battery,
+        OS: values.os || undefined,
+        Color: values.color || undefined
+      },
+      "Month of Sale": values.month,
+      "Seasonal Effect": values.seasonalEffect,
+      "Demand Level": values.demandLevel,
+      year_of_sale: values.yearOfSale
+    };
     
-    try {
-      // Create the product data
-      const newProduct: SmartphoneInputData = {
-        Brand: values.brand,
-        Model: values.model,
-        Price: values.price,
-        "Original Price": values.price,
-        Stock: values.stock,
-        Category: values.category,
-        Specifications: {
-          Storage: values.storage,
-          RAM: values.ram,
-          "Processor Type": values.processor,
-          "Display Hz": values.display,
-          "Camera MP": values.camera,
-          "Battery Capacity": values.battery,
-          OS: values.os || undefined,
-          Color: values.color || undefined
-        },
-        "Month of Sale": values.month,
-        "Seasonal Effect": values.seasonalEffect,
-        "Demand Level": values.demandLevel,
-        year_of_sale: values.yearOfSale
-      };
+    const existingProductData = dataset.find(item => item.Model === values.model);
+    if (existingProductData && existingProductData["Competitor Price"]) {
+      const currentPrice = parseFloat(values.price);
+      const competitorPrice = existingProductData["Competitor Price"];
+      const newCompetitorPrice = (currentPrice + competitorPrice) / 2;
       
-      // Save to local dataService
-      const product = dataService.addProduct(newProduct);
-      
-      // Also save to Supabase for the current user
-      const { data, error } = await supabase
-        .from('products')
-        .insert({
-          user_id: user.id,
-          name: `${values.brand} ${values.model}`,
-          category: values.category,
-          price: parseFloat(values.price),
-          sku: `${values.brand.substring(0, 3)}-${values.model.replace(/\s+/g, '')}-${Date.now().toString().substring(8)}`,
-          seasonality: values.seasonalEffect.toString(),
-          demand: values.demandLevel.toString(),
-        })
-        .select('*')
-        .single();
-        
-      if (error) throw error;
-      
-      // Convert the Supabase product to our application's Product type before adding to state
-      const convertedProduct: Product = {
-        id: data.id,
-        name: data.name,
-        basePrice: data.price,
-        category: data.category,
-        inventory: values.stock,
-        cost: parseFloat(values.price) * 0.6, // 60% of price as default cost
-        seasonality: values.seasonalEffect / 10,
-        price: data.price
-      };
-      
-      // Update the products list with the new product
-      setProducts(prevProducts => [...prevProducts, convertedProduct]);
-      
-      toast({
-        title: "Product Added",
-        description: `Successfully added ${values.brand} ${values.model}`,
-      });
-      
-      setShowAddForm(false);
-      form.reset();
-    } catch (error: any) {
-      toast({
-        title: "Error Adding Product",
-        description: error.message || "Failed to add the product",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
+      newProduct["Competitor Price"] = newCompetitorPrice;
     }
+    
+    dataService.addProduct(newProduct);
+    
+    toast({
+      title: "Product Added",
+      description: `Successfully added ${values.brand} ${values.model}`,
+    });
+    
+    setProducts(dataService.getAllProducts());
+    setLoading(false);
+    setShowAddForm(false);
+    form.reset();
+  };
+
+  const verifySpecifications = (values: z.infer<typeof formSchema>) => {
+    const matchingProducts = dataset.filter(item => 
+      item.Brand === values.brand && item.Model === values.model);
+    
+    if (matchingProducts.length === 0) return true;
+    
+    const specs = matchingProducts[0].Specifications;
+    
+    return (
+      specs.Storage === values.storage &&
+      specs.RAM === values.ram &&
+      specs["Processor Type"] === values.processor &&
+      specs["Display Hz"] === values.display &&
+      specs["Camera MP"] === values.camera &&
+      specs["Battery Capacity"] === values.battery &&
+      (specs.OS === values.os || (!specs.OS && !values.os)) &&
+      (specs.Color === values.color || (!specs.Color && !values.color))
+    );
   };
 
   const months = [
@@ -471,21 +395,9 @@ const ProductsTab: React.FC = () => {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Storage</FormLabel>
-                          <Select
-                            value={field.value}
-                            onValueChange={field.onChange}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select Storage" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {STORAGE_OPTIONS.map(option => (
-                                <SelectItem key={option} value={option}>{option}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <FormControl>
+                            <Input placeholder="e.g. 128GB" {...field} />
+                          </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -497,21 +409,9 @@ const ProductsTab: React.FC = () => {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>RAM</FormLabel>
-                          <Select
-                            value={field.value}
-                            onValueChange={field.onChange}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select RAM" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {RAM_OPTIONS.map(option => (
-                                <SelectItem key={option} value={option}>{option}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <FormControl>
+                            <Input placeholder="e.g. 8GB" {...field} />
+                          </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -523,21 +423,9 @@ const ProductsTab: React.FC = () => {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Processor</FormLabel>
-                          <Select
-                            value={field.value}
-                            onValueChange={field.onChange}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select Processor" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {PROCESSOR_OPTIONS.map(option => (
-                                <SelectItem key={option} value={option}>{option}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <FormControl>
+                            <Input placeholder="e.g. A15 Bionic" {...field} />
+                          </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -549,21 +437,14 @@ const ProductsTab: React.FC = () => {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Display Hz</FormLabel>
-                          <Select
-                            value={field.value.toString()}
-                            onValueChange={(value) => field.onChange(parseInt(value))}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select Display Hz" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {DISPLAY_HZ_OPTIONS.map(option => (
-                                <SelectItem key={option} value={option.toString()}>{option} Hz</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <FormControl>
+                            <Input 
+                              type="number" 
+                              placeholder="e.g. 120" 
+                              {...field}
+                              onChange={(e) => field.onChange(parseInt(e.target.value))}
+                            />
+                          </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -575,21 +456,14 @@ const ProductsTab: React.FC = () => {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Camera MP</FormLabel>
-                          <Select
-                            value={field.value.toString()}
-                            onValueChange={(value) => field.onChange(parseInt(value))}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select Camera MP" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {CAMERA_MP_OPTIONS.map(option => (
-                                <SelectItem key={option} value={option.toString()}>{option} MP</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <FormControl>
+                            <Input 
+                              type="number" 
+                              placeholder="e.g. 12" 
+                              {...field}
+                              onChange={(e) => field.onChange(parseInt(e.target.value))}
+                            />
+                          </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -601,21 +475,9 @@ const ProductsTab: React.FC = () => {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Battery Capacity</FormLabel>
-                          <Select
-                            value={field.value}
-                            onValueChange={field.onChange}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select Battery" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {BATTERY_OPTIONS.map(option => (
-                                <SelectItem key={option} value={option}>{option}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <FormControl>
+                            <Input placeholder="e.g. 4000mAh" {...field} />
+                          </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -626,22 +488,10 @@ const ProductsTab: React.FC = () => {
                       name="os"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>OS</FormLabel>
-                          <Select
-                            value={field.value || ""}
-                            onValueChange={field.onChange}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select OS" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {OS_OPTIONS.map(option => (
-                                <SelectItem key={option} value={option}>{option}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <FormLabel>OS (Optional)</FormLabel>
+                          <FormControl>
+                            <Input placeholder="e.g. iOS 16" {...field} />
+                          </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -652,22 +502,10 @@ const ProductsTab: React.FC = () => {
                       name="color"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Color</FormLabel>
-                          <Select
-                            value={field.value || ""}
-                            onValueChange={field.onChange}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select Color" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {COLOR_OPTIONS.map(option => (
-                                <SelectItem key={option} value={option}>{option}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <FormLabel>Color (Optional)</FormLabel>
+                          <FormControl>
+                            <Input placeholder="e.g. Midnight Black" {...field} />
+                          </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -790,16 +628,16 @@ const ProductsTab: React.FC = () => {
             <CardHeader className="pb-2">
               <CardTitle className="text-lg">{product.name}</CardTitle>
               <CardDescription>
-                {product.category} - ${product.basePrice?.toFixed(2) || parseFloat(product.price.toString()).toFixed(2)}
+                {product.category} - ${product.basePrice.toFixed(2)}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div>
-                  <span className="font-medium">Stock:</span> {product.inventory || 'N/A'}
+                  <span className="font-medium">Stock:</span> {product.inventory}
                 </div>
                 <div>
-                  <span className="font-medium">Cost:</span> ${product.cost?.toFixed(2) || 'N/A'}
+                  <span className="font-medium">Cost:</span> ${product.cost.toFixed(2)}
                 </div>
               </div>
             </CardContent>

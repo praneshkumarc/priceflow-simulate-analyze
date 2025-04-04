@@ -1,66 +1,90 @@
-import React, { useState } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Separator } from "@/components/ui/separator";
-import { Slider } from "@/components/ui/slider";
-import { Switch } from "@/components/ui/switch";
-import { BarChart, LineChart, PieChart } from "lucide-react";
-import ProductsTab from "./tabs/ProductsTab";
-import PricePredictionTab from "./tabs/PricePredictionTab";
-import DiscountSimulationTab from "./tabs/DiscountSimulationTab";
-import UserAuth from './UserAuth';
 
-const Dashboard = () => {
-  const [activeTab, setActiveTab] = useState("products");
+import React, { useState } from 'react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { TooltipProvider } from "@/components/ui/tooltip";
+import DataCollectionTab from './tabs/DataCollectionTab';
+import SalesAnalysisTab from './tabs/SalesAnalysisTab';
+import PricePredictionTab from './tabs/PricePredictionTab';
+import DiscountSimulationTab from './tabs/DiscountSimulationTab';
+import ProductsTab from './tabs/ProductsTab';
+import { Database, BarChart, LineChart, Percent, Package } from 'lucide-react';
 
+const Dashboard: React.FC = () => {
+  const [activeTab, setActiveTab] = useState('data-collection');
+  
   return (
-    <div className="flex min-h-screen">
-      <aside className="w-64 bg-sidebar-background text-sidebar-foreground border-r border-sidebar-border">
-        <div className="p-4 h-full flex flex-col">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold">PriceSmart</h2>
-            <UserAuth />
+    <TooltipProvider>
+      <div className="flex flex-col w-full h-full min-h-screen bg-gray-50">
+        <header className="border-b bg-white shadow-sm">
+          <div className="container py-4 px-6 flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-app-blue-600">PriceFlow</h1>
+              <p className="text-sm text-gray-500">Dynamic Pricing Simulator</p>
+            </div>
           </div>
-          <div className="space-y-1">
-            <Button
-              variant={activeTab === "products" ? "secondary" : "ghost"}
-              className="w-full justify-start"
-              onClick={() => setActiveTab("products")}
-            >
-              Products
-            </Button>
-            <Button
-              variant={activeTab === "price-prediction" ? "secondary" : "ghost"}
-              className="w-full justify-start"
-              onClick={() => setActiveTab("price-prediction")}
-            >
-              Price Prediction
-            </Button>
-            <Button
-              variant={activeTab === "discount-simulation" ? "secondary" : "ghost"}
-              className="w-full justify-start"
-              onClick={() => setActiveTab("discount-simulation")}
-            >
-              Discount Simulation
-            </Button>
+        </header>
+        
+        <main className="container mx-auto px-6 py-8 flex-1">
+          <Tabs
+            defaultValue="data-collection"
+            value={activeTab}
+            onValueChange={setActiveTab}
+            className="space-y-6"
+          >
+            <div className="flex justify-between items-center">
+              <TabsList>
+                <TabsTrigger value="data-collection" className="px-4 md:px-6 flex items-center gap-1">
+                  <Database className="h-4 w-4 hidden md:inline" />
+                  Data Collection
+                </TabsTrigger>
+                <TabsTrigger value="sales-analysis" className="px-4 md:px-6 flex items-center gap-1">
+                  <BarChart className="h-4 w-4 hidden md:inline" />
+                  Sales Analysis
+                </TabsTrigger>
+                <TabsTrigger value="products" className="px-4 md:px-6 flex items-center gap-1">
+                  <Package className="h-4 w-4 hidden md:inline" />
+                  Products
+                </TabsTrigger>
+                <TabsTrigger value="price-prediction" className="px-4 md:px-6 flex items-center gap-1">
+                  <LineChart className="h-4 w-4 hidden md:inline" />
+                  Price Prediction
+                </TabsTrigger>
+                <TabsTrigger value="discount-simulation" className="px-4 md:px-6 flex items-center gap-1">
+                  <Percent className="h-4 w-4 hidden md:inline" />
+                  Discount Simulation
+                </TabsTrigger>
+              </TabsList>
+            </div>
+            
+            <TabsContent value="data-collection" className="space-y-6">
+              <DataCollectionTab />
+            </TabsContent>
+            
+            <TabsContent value="sales-analysis" className="space-y-6">
+              <SalesAnalysisTab />
+            </TabsContent>
+            
+            <TabsContent value="products" className="space-y-6">
+              <ProductsTab />
+            </TabsContent>
+            
+            <TabsContent value="price-prediction" className="space-y-6">
+              <PricePredictionTab />
+            </TabsContent>
+            
+            <TabsContent value="discount-simulation" className="space-y-6">
+              <DiscountSimulationTab />
+            </TabsContent>
+          </Tabs>
+        </main>
+        
+        <footer className="bg-white border-t py-4 px-6">
+          <div className="container mx-auto text-center text-sm text-gray-500">
+            PriceFlow Simulator © {new Date().getFullYear()} | AI-Driven Dynamic Price Prediction
           </div>
-          <div className="mt-auto px-3 py-2">
-            <p className="text-xs text-sidebar-foreground/60">
-              © 2025 PriceSmart
-            </p>
-          </div>
-        </div>
-      </aside>
-      <main className="flex-1 p-6 overflow-auto">
-        {activeTab === "products" && <ProductsTab />}
-        {activeTab === "price-prediction" && <PricePredictionTab />}
-        {activeTab === "discount-simulation" && <DiscountSimulationTab />}
-      </main>
-    </div>
+        </footer>
+      </div>
+    </TooltipProvider>
   );
 };
 
