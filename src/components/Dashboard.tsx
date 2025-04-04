@@ -6,7 +6,8 @@ import DataCollectionTab from './tabs/DataCollectionTab';
 import SalesAnalysisTab from './tabs/SalesAnalysisTab';
 import PricePredictionTab from './tabs/PricePredictionTab';
 import DiscountSimulationTab from './tabs/DiscountSimulationTab';
-import { Database, BarChart, LineChart, Percent } from 'lucide-react';
+import ProductsTab from './tabs/ProductsTab';
+import { Database, BarChart, LineChart, Percent, Package } from 'lucide-react';
 
 const Dashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState('data-collection');
@@ -40,6 +41,10 @@ const Dashboard: React.FC = () => {
                   <BarChart className="h-4 w-4 hidden md:inline" />
                   Sales Analysis
                 </TabsTrigger>
+                <TabsTrigger value="products" className="px-4 md:px-6 flex items-center gap-1">
+                  <Package className="h-4 w-4 hidden md:inline" />
+                  Products
+                </TabsTrigger>
                 <TabsTrigger value="price-prediction" className="px-4 md:px-6 flex items-center gap-1">
                   <LineChart className="h-4 w-4 hidden md:inline" />
                   Price Prediction
@@ -57,6 +62,10 @@ const Dashboard: React.FC = () => {
             
             <TabsContent value="sales-analysis" className="space-y-6">
               <SalesAnalysisTab />
+            </TabsContent>
+            
+            <TabsContent value="products" className="space-y-6">
+              <ProductsTab />
             </TabsContent>
             
             <TabsContent value="price-prediction" className="space-y-6">

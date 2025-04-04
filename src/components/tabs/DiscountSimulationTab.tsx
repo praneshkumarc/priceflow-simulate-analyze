@@ -23,6 +23,7 @@ import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, BarChart as BarChartIcon, LineChart as LineChartIcon, RefreshCw } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const DiscountSimulationTab: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -30,6 +31,8 @@ const DiscountSimulationTab: React.FC = () => {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [simulations, setSimulations] = useState<SimulationResult[]>([]);
   const [loading, setLoading] = useState(true);
+  const [models, setModels] = useState<string[]>([]);
+  const [selectedModel, setSelectedModel] = useState<string>('');
   
   // Simulation params
   const [discountRate, setDiscountRate] = useState<number>(0.1); // 10% default
@@ -42,6 +45,13 @@ const DiscountSimulationTab: React.FC = () => {
     // Load products
     const allProducts = dataService.getAllProducts();
     setProducts(allProducts);
+    
+    // Extract unique models from the dataset
+    const dataset = dataService.getDataset();
+    if (dataset && dataset.length > 0) {
+      const uniqueModels = [...new Set(dataset.map(item => item.Model))];
+      setModels(uniqueModels);
+    }
     
     // If there are products, select the first one by default
     if (allProducts.length > 0) {
@@ -61,6 +71,16 @@ const DiscountSimulationTab: React.FC = () => {
     // Clear simulations when product changes
     setSimulations([]);
   }, [selectedProductId]);
+  
+  // When selected model changes, get products with that model
+  useEffect(() => {
+    if (selectedModel) {
+      const matchingProducts = dataService.getProductsByModel(selectedModel);
+      if (matchingProducts.length > 0) {
+        setSelectedProductId(matchingProducts[0].id);
+      }
+    }
+  }, [selectedModel]);
   
   const runSimulation = () => {
     if (!selectedProductId || !selectedProduct) return;
@@ -156,6 +176,25 @@ const DiscountSimulationTab: React.FC = () => {
   
   const latestSimulation = simulations.length > 0 ? simulations[simulations.length - 1] : null;
   
+  // Get product options with predicted prices
+  const getProductOptionsWithPredictions = () => {
+    return products.map(product => {
+      const prediction = dataService.predictOptimalPrice(product.id);
+      const predictedPrice = prediction ? prediction.optimalPrice : product.basePrice;
+      
+      return {
+        id: product.id,
+        name: product.name,
+        basePrice: product.basePrice,
+        predictedPrice: predictedPrice,
+        // If has specifications and model, include it
+        model: product.specifications?.model || ''
+      };
+    });
+  };
+  
+  const productOptions = getProductOptionsWithPredictions();
+  
   return (
     <div className="space-y-6">
       <div className="grid gap-6 md:grid-cols-3">
@@ -166,17 +205,46 @@ const DiscountSimulationTab: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="grid md:grid-cols-3 gap-4">
+              <div className="grid md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Select Product</Label>
-                  <ProductSelect
-                    products={products}
-                    onProductSelect={setSelectedProductId}
-                    selectedProductId={selectedProductId}
-                    placeholder="Select a product"
-                  />
+                  <Label>Select Model</Label>
+                  <Select
+                    value={selectedModel}
+                    onValueChange={setSelectedModel}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a Model" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {models.map(model => (
+                        <SelectItem key={model} value={model}>{model}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 
+                <div className="space-y-2">
+                  <Label>Select Product</Label>
+                  <Select
+                    value={selectedProductId}
+                    onValueChange={setSelectedProductId}
+                    disabled={!products.length}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a Product" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {productOptions.map(option => (
+                        <SelectItem key={option.id} value={option.id}>
+                          {option.name} - {formatCurrency(option.predictedPrice)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
+              <div className="grid md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Discount Rate: {formatPercentage(discountRate)}</Label>
                   <Slider

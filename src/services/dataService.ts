@@ -1,4 +1,3 @@
-
 import { 
   Product, 
   ProductSale, 
@@ -9,7 +8,8 @@ import {
   SimulationParams,
   SimulationResult,
   SalesTrend,
-  SmartphoneProduct
+  SmartphoneProduct,
+  SmartphoneInputData
 } from "@/types";
 import { initializeMockData } from "./mockData";
 
@@ -18,6 +18,7 @@ class DataService {
   private sales: ProductSale[] = [];
   private competitorPrices: CompetitorPrice[] = [];
   private categories: Category[] = [];
+  private dataset: SmartphoneInputData[] | null = null;
   
   constructor() {
     this.loadData();
@@ -29,6 +30,106 @@ class DataService {
     this.sales = mockData.sales;
     this.competitorPrices = mockData.competitorPrices;
     this.categories = mockData.categories;
+  }
+  
+  // Method to get the dataset
+  public getDataset(): SmartphoneInputData[] | null {
+    return this.dataset;
+  }
+  
+  // Method to update dataset with uploaded data
+  public updateDataset(data: SmartphoneInputData[]): void {
+    this.dataset = data;
+  }
+  
+  // Method to add a new product 
+  public addProduct(productData: SmartphoneInputData): void {
+    // Generate a unique ID for the new product
+    const productId = `product-${Date.now()}`;
+    
+    // Create the base product object
+    const newProduct: Product = {
+      id: productId,
+      name: `${productData.Brand} ${productData.Model}`,
+      basePrice: typeof productData.Price === 'string' ? parseFloat(productData.Price) : productData.Price,
+      category: productData.Category,
+      inventory: productData.Stock || 10,
+      cost: typeof productData["Original Price"] === 'string' ? 
+        parseFloat(productData["Original Price"]) : 
+        (productData["Original Price"] || 0),
+      seasonality: productData["Seasonal Effect"] ? productData["Seasonal Effect"] / 10 : 0.5,
+      specifications: {
+        ...productData.Specifications,
+        brand: productData.Brand,
+        model: productData.Model
+      }
+    };
+    
+    // Add to products array
+    this.products.push(newProduct);
+    
+    // Generate sample sales data for the new product
+    this.generateSalesDataForProduct(productId, productData);
+    
+    // Add competitor price if available
+    if (productData["Competitor Price"]) {
+      this.addCompetitorPrice(productId, productData["Competitor Price"]);
+    }
+    
+    // Update dataset to include the new product
+    if (this.dataset) {
+      this.dataset.push(productData);
+    } else {
+      this.dataset = [productData];
+    }
+  }
+  
+  // Method to generate sales data for a specific product
+  private generateSalesDataForProduct(productId: string, productData: SmartphoneInputData): void {
+    const now = new Date();
+    const basePrice = typeof productData.Price === 'string' ? parseFloat(productData.Price) : productData.Price;
+    
+    // Generate between 5-15 sales
+    const salesCount = Math.floor(Math.random() * 10) + 5;
+    
+    for (let i = 0; i < salesCount; i++) {
+      // Random date in the last 90 days
+      const date = new Date();
+      date.setDate(now.getDate() - Math.floor(Math.random() * 90));
+      
+      // Random quantity between 1-5
+      const quantity = Math.floor(Math.random() * 5) + 1;
+      
+      // Price with minor variations around the base price
+      const variation = (Math.random() * 0.2) - 0.1; // -10% to +10%
+      const price = basePrice * (1 + variation);
+      
+      this.sales.push({
+        id: `sale-${this.sales.length + 1}`,
+        productId: productId,
+        date: date.toISOString().split('T')[0],
+        quantity,
+        price: Math.round(price * 100) / 100
+      });
+    }
+    
+    // Sort by date, newest first
+    this.sales.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }
+  
+  // Method to add a competitor price for a product
+  private addCompetitorPrice(productId: string, price: number): void {
+    const competitors = ['CompetitorA', 'CompetitorB', 'CompetitorC'];
+    
+    // Random competitor
+    const competitor = competitors[Math.floor(Math.random() * competitors.length)];
+    
+    this.competitorPrices.push({
+      productId: productId,
+      competitorName: competitor,
+      price: Math.round(price * 100) / 100,
+      date: new Date().toISOString().split('T')[0]
+    });
   }
   
   // Method to update products with uploaded data
@@ -113,6 +214,219 @@ class DataService {
   
   public getProductsByCategory(category: string): Product[] {
     return this.products.filter(p => p.category === category);
+  }
+  
+  public getProductsByModel(model: string): Product[] {
+    return this.products.filter(p => 
+      p.specifications && p.specifications.model === model
+    );
+  }
+  
+  // Get unique values from dataset
+  public getUniqueValuesFromDataset(field: string): string[] {
+    if (!this.dataset || this.dataset.length === 0) {
+      return [];
+    }
+    
+    const values = new Set<string>();
+    
+    this.dataset.forEach(item => {
+      const value = (item as any)[field];
+      if (value) {
+        values.add(value.toString());
+      }
+    });
+    
+    return Array.from(values);
+  }
+  
+  // Price prediction using KNN algorithm
+  public predictPrice(model: string, basePrice: number, profitMargin: number): number {
+    if (!this.dataset || this.dataset.length === 0) {
+      return basePrice; // Default to base price if no dataset
+    }
+    
+    // Filter dataset to find entries with matching model
+    const matchingEntries = this.dataset.filter(item => item.Model === model);
+    
+    if (matchingEntries.length === 0) {
+      return basePrice; // Default to base price if no matches
+    }
+    
+    // Normalize competitor prices
+    const normalizedEntries = this.normalizeCompetitorPrices(matchingEntries);
+    
+    // Extract features for KNN
+    const features = this.extractFeatures(normalizedEntries[0]);
+    
+    // Find K nearest neighbors (use K=3 or dataset length if smaller)
+    const k = Math.min(3, normalizedEntries.length);
+    const neighbors = this.findKNearestNeighbors(normalizedEntries, features, k);
+    
+    // Calculate predicted price based on neighbors
+    let predictedPrice = 0;
+    let totalWeight = 0;
+    
+    neighbors.forEach(neighbor => {
+      const price = typeof neighbor.entry.Price === 'string' ? 
+        parseFloat(neighbor.entry.Price) : neighbor.entry.Price;
+      
+      const weight = 1 / (neighbor.distance + 0.1); // Add 0.1 to avoid division by zero
+      predictedPrice += price * weight;
+      totalWeight += weight;
+    });
+    
+    predictedPrice = predictedPrice / totalWeight;
+    
+    // Adjust based on profit margin
+    const costFactor = 1 - (profitMargin / 100);
+    const adjustedPrice = predictedPrice / costFactor;
+    
+    return Math.round(adjustedPrice * 100) / 100;
+  }
+  
+  // Normalize competitor prices in dataset
+  private normalizeCompetitorPrices(entries: SmartphoneInputData[]): SmartphoneInputData[] {
+    // Group entries by competitor price
+    const priceGroups: Record<number, SmartphoneInputData[]> = {};
+    
+    entries.forEach(entry => {
+      if (entry["Competitor Price"]) {
+        const price = entry["Competitor Price"];
+        if (!priceGroups[price]) {
+          priceGroups[price] = [];
+        }
+        priceGroups[price].push(entry);
+      }
+    });
+    
+    // For each group with identical prices, keep only one entry
+    const normalizedEntries: SmartphoneInputData[] = [];
+    
+    Object.values(priceGroups).forEach(group => {
+      normalizedEntries.push(group[0]);
+    });
+    
+    // Add entries without competitor prices
+    entries.forEach(entry => {
+      if (!entry["Competitor Price"]) {
+        normalizedEntries.push(entry);
+      }
+    });
+    
+    return normalizedEntries;
+  }
+  
+  // Extract features from dataset entry
+  private extractFeatures(entry: SmartphoneInputData): Record<string, number> {
+    const features: Record<string, number> = {};
+    
+    // Extract numerical features
+    if (entry.Specifications) {
+      features.storage = this.extractStorageGB(entry.Specifications.Storage);
+      features.ram = this.extractRAMGB(entry.Specifications.RAM);
+      features.display = entry.Specifications["Display Hz"] || 60;
+      features.camera = entry.Specifications["Camera MP"] || 12;
+      features.battery = this.extractBatteryCapacity(entry.Specifications["Battery Capacity"]);
+    }
+    
+    // Other numerical features
+    features.stock = entry.Stock || 10;
+    features.seasonalEffect = entry["Seasonal Effect"] || 5;
+    features.demandLevel = entry["Demand Level"] || 5;
+    
+    return features;
+  }
+  
+  // Helper to extract storage in GB
+  private extractStorageGB(storage: string): number {
+    if (!storage) return 64; // Default value
+    
+    const match = storage.match(/(\d+)\s*GB/i);
+    if (match && match[1]) {
+      return parseInt(match[1]);
+    }
+    
+    const tbMatch = storage.match(/(\d+)\s*TB/i);
+    if (tbMatch && tbMatch[1]) {
+      return parseInt(tbMatch[1]) * 1024; // Convert TB to GB
+    }
+    
+    return 64; // Default value
+  }
+  
+  // Helper to extract RAM in GB
+  private extractRAMGB(ram: string): number {
+    if (!ram) return 4; // Default value
+    
+    const match = ram.match(/(\d+)\s*GB/i);
+    if (match && match[1]) {
+      return parseInt(match[1]);
+    }
+    
+    return 4; // Default value
+  }
+  
+  // Helper to extract battery capacity in mAh
+  private extractBatteryCapacity(battery: string): number {
+    if (!battery) return 3000; // Default value
+    
+    const match = battery.match(/(\d+)\s*mAh/i);
+    if (match && match[1]) {
+      return parseInt(match[1]);
+    }
+    
+    return 3000; // Default value
+  }
+  
+  // Find K nearest neighbors using Euclidean distance
+  private findKNearestNeighbors(
+    entries: SmartphoneInputData[], 
+    targetFeatures: Record<string, number>, 
+    k: number
+  ): { entry: SmartphoneInputData; distance: number }[] {
+    // Calculate distance for each entry
+    const entriesWithDistance = entries.map(entry => {
+      const features = this.extractFeatures(entry);
+      const distance = this.calculateEuclideanDistance(features, targetFeatures);
+      return { entry, distance };
+    });
+    
+    // Sort by distance (ascending) and take top K
+    return entriesWithDistance
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, k);
+  }
+  
+  // Calculate Euclidean distance between feature sets
+  private calculateEuclideanDistance(
+    features1: Record<string, number>, 
+    features2: Record<string, number>
+  ): number {
+    let sum = 0;
+    
+    // Normalize and weight features
+    const weights = {
+      storage: 0.2,
+      ram: 0.2,
+      display: 0.15,
+      camera: 0.15,
+      battery: 0.1,
+      stock: 0.05,
+      seasonalEffect: 0.1,
+      demandLevel: 0.1
+    };
+    
+    // For each feature in features1
+    Object.keys(features1).forEach(key => {
+      if (features2[key] !== undefined) {
+        const weight = (weights as any)[key] || 1;
+        const diff = features1[key] - features2[key];
+        sum += weight * diff * diff;
+      }
+    });
+    
+    return Math.sqrt(sum);
   }
   
   // Sales methods
