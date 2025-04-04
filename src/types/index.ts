@@ -138,4 +138,5 @@ export interface SmartphoneInputData {
   "Seasonal Effect"?: number;
   "Competitor Price"?: number;
   "Demand Level"?: number;
+  year_of_sale?: number; // Added this property
 }
