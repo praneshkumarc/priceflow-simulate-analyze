@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,7 +35,6 @@ const ProductsTab: React.FC = () => {
   const [showAddForm, setShowAddForm] = useState(false);
   const { toast } = useToast();
 
-  // Load dataset and products
   useEffect(() => {
     const dataset = dataService.getDataset();
     const allProducts = dataService.getAllProducts();
@@ -44,7 +42,6 @@ const ProductsTab: React.FC = () => {
     setDataset(dataset || []);
     setProducts(allProducts);
     
-    // Extract unique values
     if (dataset && dataset.length > 0) {
       const brands = [...new Set(dataset.map(item => item.Brand))];
       const models = [...new Set(dataset.map(item => item.Model))];
@@ -56,7 +53,6 @@ const ProductsTab: React.FC = () => {
     }
   }, []);
 
-  // Filter models when brand changes
   useEffect(() => {
     if (selectedBrand && dataset) {
       const models = [...new Set(dataset
@@ -68,7 +64,6 @@ const ProductsTab: React.FC = () => {
     }
   }, [selectedBrand, dataset, uniqueModels]);
 
-  // Fetch specifications when model changes
   useEffect(() => {
     if (selectedModel && dataset) {
       const matchingProduct = dataset.find(item => item.Model === selectedModel);
@@ -82,7 +77,6 @@ const ProductsTab: React.FC = () => {
     }
   }, [selectedModel, dataset]);
 
-  // Define the form schema
   const formSchema = z.object({
     brand: z.string().min(1, "Brand is required"),
     model: z.string().min(1, "Model is required"),
@@ -103,7 +97,6 @@ const ProductsTab: React.FC = () => {
     yearOfSale: z.number().min(2000, "Year must be valid")
   });
 
-  // Initialize form
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -127,7 +120,6 @@ const ProductsTab: React.FC = () => {
     }
   });
 
-  // Pre-fill form when model is selected
   useEffect(() => {
     if (selectedModel && selectedBrand && matchingSpecs) {
       const matchingProduct = dataset.find(item => item.Model === selectedModel);
@@ -139,19 +131,17 @@ const ProductsTab: React.FC = () => {
         form.setValue("stock", matchingProduct.Stock || 10);
         form.setValue("category", matchingProduct.Category);
         
-        // Set specifications
         if (matchingSpecs) {
           form.setValue("storage", matchingSpecs.Storage);
           form.setValue("ram", matchingSpecs.RAM);
-          form.setValue("processor", matchingSpecs.["Processor Type"]);
-          form.setValue("display", matchingSpecs.["Display Hz"]);
-          form.setValue("camera", matchingSpecs.["Camera MP"]);
-          form.setValue("battery", matchingSpecs.["Battery Capacity"]);
+          form.setValue("processor", matchingSpecs["Processor Type"]);
+          form.setValue("display", matchingSpecs["Display Hz"]);
+          form.setValue("camera", matchingSpecs["Camera MP"]);
+          form.setValue("battery", matchingSpecs["Battery Capacity"]);
           form.setValue("os", matchingSpecs.OS || "");
           form.setValue("color", matchingSpecs.Color || "");
         }
         
-        // Set other values if available
         if (matchingProduct["Month of Sale"]) {
           form.setValue("month", matchingProduct["Month of Sale"]);
         }
@@ -171,7 +161,6 @@ const ProductsTab: React.FC = () => {
   const onSubmit = (values: z.infer<typeof formSchema>) => {
     setLoading(true);
     
-    // Check if specifications match existing products
     const specsMatch = verifySpecifications(values);
     
     if (!specsMatch) {
@@ -184,7 +173,6 @@ const ProductsTab: React.FC = () => {
       return;
     }
     
-    // Create new product object
     const newProduct: SmartphoneInputData = {
       Brand: values.brand,
       Model: values.model,
@@ -208,10 +196,8 @@ const ProductsTab: React.FC = () => {
       year_of_sale: values.yearOfSale
     };
     
-    // Check if model exists in dataset and append competitor price
     const existingProductData = dataset.find(item => item.Model === values.model);
     if (existingProductData && existingProductData["Competitor Price"]) {
-      // Calculate average of prices
       const currentPrice = parseFloat(values.price);
       const competitorPrice = existingProductData["Competitor Price"];
       const newCompetitorPrice = (currentPrice + competitorPrice) / 2;
@@ -219,7 +205,6 @@ const ProductsTab: React.FC = () => {
       newProduct["Competitor Price"] = newCompetitorPrice;
     }
     
-    // Add product to database using dataService
     dataService.addProduct(newProduct);
     
     toast({
@@ -227,7 +212,6 @@ const ProductsTab: React.FC = () => {
       description: `Successfully added ${values.brand} ${values.model}`,
     });
     
-    // Refresh product list
     setProducts(dataService.getAllProducts());
     setLoading(false);
     setShowAddForm(false);
@@ -235,13 +219,11 @@ const ProductsTab: React.FC = () => {
   };
 
   const verifySpecifications = (values: z.infer<typeof formSchema>) => {
-    // Find matching products with same brand and model
     const matchingProducts = dataset.filter(item => 
       item.Brand === values.brand && item.Model === values.model);
     
-    if (matchingProducts.length === 0) return true; // New product, no validation needed
+    if (matchingProducts.length === 0) return true;
     
-    // Check if specifications match
     const specs = matchingProducts[0].Specifications;
     
     return (
