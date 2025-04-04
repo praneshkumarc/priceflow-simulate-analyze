@@ -5,10 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Auth = () => {
   const [email, setEmail] = useState('');
@@ -18,39 +18,21 @@ const Auth = () => {
   const [lastName, setLastName] = useState('');
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { user, signIn, signUp } = useAuth();
   
   useEffect(() => {
-    // Check if user is already logged in
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        navigate('/');
-      }
-    };
-    
-    checkSession();
-    
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (session) {
-          navigate('/');
-        }
-      }
-    );
-    
-    return () => subscription.unsubscribe();
-  }, [navigate]);
+    // If already logged in, redirect to home
+    if (user) {
+      navigate('/');
+    }
+  }, [user, navigate]);
   
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { error } = await signIn(email, password);
       
       if (error) throw error;
       
@@ -59,7 +41,7 @@ const Auth = () => {
         description: "You have been logged in successfully",
       });
       
-      // Navigation will be handled by onAuthStateChange
+      // Navigation will be handled by useEffect when user state changes
     } catch (error: any) {
       toast({
         title: "Error",
@@ -76,16 +58,7 @@ const Auth = () => {
     setLoading(true);
     
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            first_name: firstName,
-            last_name: lastName,
-          }
-        }
-      });
+      const { error } = await signUp(email, password, firstName, lastName);
       
       if (error) throw error;
       

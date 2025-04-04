@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { 
@@ -8,62 +8,15 @@ import {
   DropdownMenuItem, 
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
-import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { User } from '@supabase/supabase-js';
 import { LogOut, User as UserIcon } from 'lucide-react';
+import { useAuth } from "@/contexts/AuthContext";
 
 const UserAuth = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<any>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
-  
-  useEffect(() => {
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setUser(session?.user ?? null);
-        
-        if (session?.user) {
-          // Fetch the user profile after a slight delay to avoid potential deadlocks
-          setTimeout(() => {
-            fetchUserProfile(session.user.id);
-          }, 0);
-        } else {
-          setProfile(null);
-        }
-      }
-    );
-    
-    // Get the current session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        fetchUserProfile(session.user.id);
-      }
-    });
-    
-    return () => subscription.unsubscribe();
-  }, []);
-  
-  const fetchUserProfile = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
-      
-      if (error) throw error;
-      
-      setProfile(data);
-    } catch (error) {
-      console.error('Error fetching user profile:', error);
-    }
-  };
+  const { user, profile, signOut } = useAuth();
   
   const handleLogin = () => {
     navigate('/auth');
@@ -71,7 +24,7 @@ const UserAuth = () => {
   
   const handleLogout = async () => {
     try {
-      await supabase.auth.signOut();
+      await signOut();
       toast({
         title: "Logged Out",
         description: "You have been logged out successfully",
