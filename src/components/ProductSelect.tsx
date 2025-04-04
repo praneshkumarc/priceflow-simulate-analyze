@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useMemo } from "react";
 import { 
   Select, 
   SelectContent, 
@@ -16,22 +16,28 @@ interface ProductSelectProps {
   onProductSelect: (productId: string) => void;
   selectedProductId?: string;
   placeholder?: string;
+  showPrices?: boolean;
+  predictedPrices?: Record<string, number>;
 }
 
 export const ProductSelect: React.FC<ProductSelectProps> = ({
   products,
   onProductSelect,
   selectedProductId,
-  placeholder = "Select a product"
+  placeholder = "Select a product",
+  showPrices = true,
+  predictedPrices
 }) => {
   // Group products by category
-  const productsByCategory = products.reduce((acc, product) => {
-    if (!acc[product.category]) {
-      acc[product.category] = [];
-    }
-    acc[product.category].push(product);
-    return acc;
-  }, {} as Record<string, Product[]>);
+  const productsByCategory = useMemo(() => {
+    return products.reduce((acc, product) => {
+      if (!acc[product.category]) {
+        acc[product.category] = [];
+      }
+      acc[product.category].push(product);
+      return acc;
+    }, {} as Record<string, Product[]>);
+  }, [products]);
 
   return (
     <Select
@@ -47,7 +53,9 @@ export const ProductSelect: React.FC<ProductSelectProps> = ({
             <SelectLabel>{category}</SelectLabel>
             {products.map((product) => (
               <SelectItem key={product.id} value={product.id}>
-                {product.name} (${product.basePrice.toFixed(2)})
+                {product.name}
+                {showPrices && ` ($${product.basePrice.toFixed(2)})`}
+                {predictedPrices && predictedPrices[product.id] && ` ($${predictedPrices[product.id].toFixed(2)})`}
               </SelectItem>
             ))}
           </SelectGroup>

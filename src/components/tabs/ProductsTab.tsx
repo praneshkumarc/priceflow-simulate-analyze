@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,11 +16,22 @@ import {
   FormLabel,
   FormControl,
   FormMessage,
-  FormDescription
 } from "@/components/ui/form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
+import SpecificationDropdown from '@/components/SpecificationDropdown';
+import { 
+  PROCESSOR_OPTIONS,
+  RAM_OPTIONS,
+  STORAGE_OPTIONS,
+  DISPLAY_HZ_OPTIONS,
+  CAMERA_MP_OPTIONS,
+  BATTERY_CAPACITY_OPTIONS,
+  OS_OPTIONS,
+  COLOR_OPTIONS
+} from '@/constants/productSpecifications';
+import { useAuth } from '@/contexts/AuthContext';
 
 const ProductsTab: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -34,6 +46,7 @@ const ProductsTab: React.FC = () => {
   const [matchingSpecs, setMatchingSpecs] = useState<any>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   useEffect(() => {
     const dataset = dataService.getDataset();
@@ -43,12 +56,17 @@ const ProductsTab: React.FC = () => {
     setProducts(allProducts);
     
     if (dataset && dataset.length > 0) {
+      // Extract unique brands, models and categories
       const brands = [...new Set(dataset.map(item => item.Brand))];
-      const models = [...new Set(dataset.map(item => item.Model))];
+      
+      // Extract only a reasonable number of unique models (10-20)
+      const allModels = [...new Set(dataset.map(item => item.Model))];
+      const limitedModels = allModels.slice(0, 20); // Limit to 20 models
+      
       const categories = [...new Set(dataset.map(item => item.Category))];
       
       setUniqueBrands(brands);
-      setUniqueModels(models);
+      setUniqueModels(limitedModels);
       setUniqueCategories(categories);
     }
   }, []);
@@ -58,7 +76,7 @@ const ProductsTab: React.FC = () => {
       const models = [...new Set(dataset
         .filter(item => item.Brand === selectedBrand)
         .map(item => item.Model))];
-      setFilteredModels(models);
+      setFilteredModels(models.slice(0, 20)); // Limit to 20 models
     } else {
       setFilteredModels(uniqueModels);
     }
@@ -105,14 +123,14 @@ const ProductsTab: React.FC = () => {
       price: "",
       stock: 1,
       category: "",
-      storage: "",
-      ram: "",
-      processor: "",
-      display: 60,
-      camera: 12,
-      battery: "",
-      os: "",
-      color: "",
+      storage: STORAGE_OPTIONS[0],
+      ram: RAM_OPTIONS[0],
+      processor: PROCESSOR_OPTIONS[0],
+      display: DISPLAY_HZ_OPTIONS[0],
+      camera: CAMERA_MP_OPTIONS[0],
+      battery: BATTERY_CAPACITY_OPTIONS[0],
+      os: OS_OPTIONS[0],
+      color: COLOR_OPTIONS[0],
       month: "January",
       seasonalEffect: 5,
       demandLevel: 5,
@@ -138,8 +156,8 @@ const ProductsTab: React.FC = () => {
           form.setValue("display", matchingSpecs["Display Hz"]);
           form.setValue("camera", matchingSpecs["Camera MP"]);
           form.setValue("battery", matchingSpecs["Battery Capacity"]);
-          form.setValue("os", matchingSpecs.OS || "");
-          form.setValue("color", matchingSpecs.Color || "");
+          form.setValue("os", matchingSpecs.OS || OS_OPTIONS[0]);
+          form.setValue("color", matchingSpecs.Color || COLOR_OPTIONS[0]);
         }
         
         if (matchingProduct["Month of Sale"]) {
@@ -226,16 +244,17 @@ const ProductsTab: React.FC = () => {
     
     const specs = matchingProducts[0].Specifications;
     
-    return (
-      specs.Storage === values.storage &&
-      specs.RAM === values.ram &&
-      specs["Processor Type"] === values.processor &&
-      specs["Display Hz"] === values.display &&
-      specs["Camera MP"] === values.camera &&
-      specs["Battery Capacity"] === values.battery &&
-      (specs.OS === values.os || (!specs.OS && !values.os)) &&
-      (specs.Color === values.color || (!specs.Color && !values.color))
-    );
+    // Check if the values are in the allowed lists
+    if (!STORAGE_OPTIONS.includes(values.storage as any)) return false;
+    if (!RAM_OPTIONS.includes(values.ram as any)) return false;
+    if (!PROCESSOR_OPTIONS.includes(values.processor as any)) return false;
+    if (!DISPLAY_HZ_OPTIONS.includes(values.display as any)) return false;
+    if (!CAMERA_MP_OPTIONS.includes(values.camera as any)) return false;
+    if (!BATTERY_CAPACITY_OPTIONS.includes(values.battery as any)) return false;
+    if (values.os && !OS_OPTIONS.includes(values.os as any)) return false;
+    if (values.color && !COLOR_OPTIONS.includes(values.color as any)) return false;
+    
+    return true;
   };
 
   const months = [
@@ -389,126 +408,60 @@ const ProductsTab: React.FC = () => {
                 <div className="space-y-2">
                   <h3 className="text-lg font-medium">Specifications</h3>
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <FormField
+                    <SpecificationDropdown
                       control={form.control}
                       name="storage"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Storage</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g. 128GB" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
+                      label="Storage"
+                      options={STORAGE_OPTIONS}
                     />
                     
-                    <FormField
+                    <SpecificationDropdown
                       control={form.control}
                       name="ram"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>RAM</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g. 8GB" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
+                      label="RAM"
+                      options={RAM_OPTIONS}
                     />
                     
-                    <FormField
+                    <SpecificationDropdown
                       control={form.control}
                       name="processor"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Processor</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g. A15 Bionic" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
+                      label="Processor"
+                      options={PROCESSOR_OPTIONS}
                     />
                     
-                    <FormField
+                    <SpecificationDropdown
                       control={form.control}
                       name="display"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Display Hz</FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="number" 
-                              placeholder="e.g. 120" 
-                              {...field}
-                              onChange={(e) => field.onChange(parseInt(e.target.value))}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
+                      label="Display Hz"
+                      options={DISPLAY_HZ_OPTIONS}
                     />
                     
-                    <FormField
+                    <SpecificationDropdown
                       control={form.control}
                       name="camera"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Camera MP</FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="number" 
-                              placeholder="e.g. 12" 
-                              {...field}
-                              onChange={(e) => field.onChange(parseInt(e.target.value))}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
+                      label="Camera MP"
+                      options={CAMERA_MP_OPTIONS}
                     />
                     
-                    <FormField
+                    <SpecificationDropdown
                       control={form.control}
                       name="battery"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Battery Capacity</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g. 4000mAh" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
+                      label="Battery Capacity"
+                      options={BATTERY_CAPACITY_OPTIONS}
                     />
                     
-                    <FormField
+                    <SpecificationDropdown
                       control={form.control}
                       name="os"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>OS (Optional)</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g. iOS 16" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
+                      label="OS"
+                      options={OS_OPTIONS}
                     />
                     
-                    <FormField
+                    <SpecificationDropdown
                       control={form.control}
                       name="color"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Color (Optional)</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g. Midnight Black" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
+                      label="Color"
+                      options={COLOR_OPTIONS}
                     />
                   </div>
                 </div>
