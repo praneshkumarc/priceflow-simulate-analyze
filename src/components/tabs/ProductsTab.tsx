@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,18 @@ import {
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+
+// Define dropdown options for specifications
+const PROCESSOR_OPTIONS = ["A15 Bionic", "A16 Bionic", "A17 Pro"];
+const RAM_OPTIONS = ["4GB", "6GB", "8GB"];
+const STORAGE_OPTIONS = ["128GB", "256GB", "512GB"];
+const DISPLAY_HZ_OPTIONS = [60, 120];
+const CAMERA_MP_OPTIONS = [12, 48];
+const BATTERY_OPTIONS = ["2018mAh", "3349mAh", "4323mAh"];
+const OS_OPTIONS = ["iOS 15", "iOS 16", "iOS 17"];
+const COLOR_OPTIONS = ["Midnight", "Silver", "Black Titanium", "Space Black", "Blue Titanium"];
 
 const ProductsTab: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -34,24 +47,48 @@ const ProductsTab: React.FC = () => {
   const [matchingSpecs, setMatchingSpecs] = useState<any>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   useEffect(() => {
-    const dataset = dataService.getDataset();
-    const allProducts = dataService.getAllProducts();
-    
-    setDataset(dataset || []);
-    setProducts(allProducts);
-    
-    if (dataset && dataset.length > 0) {
-      const brands = [...new Set(dataset.map(item => item.Brand))];
-      const models = [...new Set(dataset.map(item => item.Model))];
-      const categories = [...new Set(dataset.map(item => item.Category))];
+    const fetchData = async () => {
+      const dataset = dataService.getDataset();
       
-      setUniqueBrands(brands);
-      setUniqueModels(models);
-      setUniqueCategories(categories);
-    }
-  }, []);
+      // Get products for current user only
+      let userProducts;
+      if (user) {
+        try {
+          const { data, error } = await supabase
+            .from('products')
+            .select('*')
+            .eq('user_id', user.id);
+            
+          if (error) throw error;
+          userProducts = data;
+        } catch (error) {
+          console.error('Error fetching user products:', error);
+          userProducts = [];
+        }
+      } else {
+        userProducts = dataService.getAllProducts();
+      }
+      
+      setDataset(dataset || []);
+      setProducts(userProducts || []);
+      
+      if (dataset && dataset.length > 0) {
+        // Get unique models instead of all entries
+        const brands = [...new Set(dataset.map(item => item.Brand))];
+        const models = [...new Set(dataset.map(item => item.Model))];
+        const categories = [...new Set(dataset.map(item => item.Category))];
+        
+        setUniqueBrands(brands);
+        setUniqueModels(models);
+        setUniqueCategories(categories);
+      }
+    };
+    
+    fetchData();
+  }, [user]);
 
   useEffect(() => {
     if (selectedBrand && dataset) {
@@ -105,14 +142,14 @@ const ProductsTab: React.FC = () => {
       price: "",
       stock: 1,
       category: "",
-      storage: "",
-      ram: "",
-      processor: "",
-      display: 60,
-      camera: 12,
-      battery: "",
-      os: "",
-      color: "",
+      storage: STORAGE_OPTIONS[0],
+      ram: RAM_OPTIONS[0],
+      processor: PROCESSOR_OPTIONS[0],
+      display: DISPLAY_HZ_OPTIONS[0],
+      camera: CAMERA_MP_OPTIONS[0],
+      battery: BATTERY_OPTIONS[0],
+      os: OS_OPTIONS[0],
+      color: COLOR_OPTIONS[0],
       month: "January",
       seasonalEffect: 5,
       demandLevel: 5,
@@ -131,15 +168,32 @@ const ProductsTab: React.FC = () => {
         form.setValue("stock", matchingProduct.Stock || 10);
         form.setValue("category", matchingProduct.Category);
         
+        // Set defaults for spec dropdowns from matching product when available
         if (matchingSpecs) {
-          form.setValue("storage", matchingSpecs.Storage);
-          form.setValue("ram", matchingSpecs.RAM);
-          form.setValue("processor", matchingSpecs["Processor Type"]);
-          form.setValue("display", matchingSpecs["Display Hz"]);
-          form.setValue("camera", matchingSpecs["Camera MP"]);
-          form.setValue("battery", matchingSpecs["Battery Capacity"]);
-          form.setValue("os", matchingSpecs.OS || "");
-          form.setValue("color", matchingSpecs.Color || "");
+          // For each spec, check if the value exists in our options, otherwise use default
+          const storage = matchingSpecs.Storage;
+          form.setValue("storage", STORAGE_OPTIONS.includes(storage) ? storage : STORAGE_OPTIONS[0]);
+          
+          const ram = matchingSpecs.RAM;
+          form.setValue("ram", RAM_OPTIONS.includes(ram) ? ram : RAM_OPTIONS[0]);
+          
+          const processor = matchingSpecs["Processor Type"];
+          form.setValue("processor", PROCESSOR_OPTIONS.includes(processor) ? processor : PROCESSOR_OPTIONS[0]);
+          
+          const display = matchingSpecs["Display Hz"];
+          form.setValue("display", DISPLAY_HZ_OPTIONS.includes(display) ? display : DISPLAY_HZ_OPTIONS[0]);
+          
+          const camera = matchingSpecs["Camera MP"];
+          form.setValue("camera", CAMERA_MP_OPTIONS.includes(camera) ? camera : CAMERA_MP_OPTIONS[0]);
+          
+          const battery = matchingSpecs["Battery Capacity"];
+          form.setValue("battery", BATTERY_OPTIONS.includes(battery) ? battery : BATTERY_OPTIONS[0]);
+          
+          const os = matchingSpecs.OS;
+          form.setValue("os", OS_OPTIONS.includes(os) ? os : OS_OPTIONS[0]);
+          
+          const color = matchingSpecs.Color;
+          form.setValue("color", COLOR_OPTIONS.includes(color) ? color : COLOR_OPTIONS[0]);
         }
         
         if (matchingProduct["Month of Sale"]) {
@@ -158,84 +212,82 @@ const ProductsTab: React.FC = () => {
     }
   }, [selectedModel, selectedBrand, matchingSpecs, form, dataset]);
 
-  const onSubmit = (values: z.infer<typeof formSchema>) => {
-    setLoading(true);
-    
-    const specsMatch = verifySpecifications(values);
-    
-    if (!specsMatch) {
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    if (!user) {
       toast({
-        title: "Specifications Error",
-        description: "Specifications do not match existing products",
+        title: "Authentication Required",
+        description: "You need to be logged in to add products",
         variant: "destructive"
       });
-      setLoading(false);
       return;
     }
     
-    const newProduct: SmartphoneInputData = {
-      Brand: values.brand,
-      Model: values.model,
-      Price: values.price,
-      "Original Price": values.price,
-      Stock: values.stock,
-      Category: values.category,
-      Specifications: {
-        Storage: values.storage,
-        RAM: values.ram,
-        "Processor Type": values.processor,
-        "Display Hz": values.display,
-        "Camera MP": values.camera,
-        "Battery Capacity": values.battery,
-        OS: values.os || undefined,
-        Color: values.color || undefined
-      },
-      "Month of Sale": values.month,
-      "Seasonal Effect": values.seasonalEffect,
-      "Demand Level": values.demandLevel,
-      year_of_sale: values.yearOfSale
-    };
+    setLoading(true);
     
-    const existingProductData = dataset.find(item => item.Model === values.model);
-    if (existingProductData && existingProductData["Competitor Price"]) {
-      const currentPrice = parseFloat(values.price);
-      const competitorPrice = existingProductData["Competitor Price"];
-      const newCompetitorPrice = (currentPrice + competitorPrice) / 2;
+    try {
+      // Create the product data
+      const newProduct: SmartphoneInputData = {
+        Brand: values.brand,
+        Model: values.model,
+        Price: values.price,
+        "Original Price": values.price,
+        Stock: values.stock,
+        Category: values.category,
+        Specifications: {
+          Storage: values.storage,
+          RAM: values.ram,
+          "Processor Type": values.processor,
+          "Display Hz": values.display,
+          "Camera MP": values.camera,
+          "Battery Capacity": values.battery,
+          OS: values.os || undefined,
+          Color: values.color || undefined
+        },
+        "Month of Sale": values.month,
+        "Seasonal Effect": values.seasonalEffect,
+        "Demand Level": values.demandLevel,
+        year_of_sale: values.yearOfSale
+      };
       
-      newProduct["Competitor Price"] = newCompetitorPrice;
+      // Save to local dataService
+      const product = dataService.addProduct(newProduct);
+      
+      // Also save to Supabase for the current user
+      const { data, error } = await supabase
+        .from('products')
+        .insert({
+          user_id: user.id,
+          name: `${values.brand} ${values.model}`,
+          category: values.category,
+          price: parseFloat(values.price),
+          sku: `${values.brand.substring(0, 3)}-${values.model.replace(/\s+/g, '')}-${Date.now().toString().substring(8)}`,
+          seasonality: values.seasonalEffect.toString(),
+          demand: values.demandLevel.toString(),
+        })
+        .select('*')
+        .single();
+        
+      if (error) throw error;
+      
+      // Update the products list with the new Supabase data
+      setProducts(prevProducts => [...prevProducts, data]);
+      
+      toast({
+        title: "Product Added",
+        description: `Successfully added ${values.brand} ${values.model}`,
+      });
+      
+      setShowAddForm(false);
+      form.reset();
+    } catch (error: any) {
+      toast({
+        title: "Error Adding Product",
+        description: error.message || "Failed to add the product",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
     }
-    
-    dataService.addProduct(newProduct);
-    
-    toast({
-      title: "Product Added",
-      description: `Successfully added ${values.brand} ${values.model}`,
-    });
-    
-    setProducts(dataService.getAllProducts());
-    setLoading(false);
-    setShowAddForm(false);
-    form.reset();
-  };
-
-  const verifySpecifications = (values: z.infer<typeof formSchema>) => {
-    const matchingProducts = dataset.filter(item => 
-      item.Brand === values.brand && item.Model === values.model);
-    
-    if (matchingProducts.length === 0) return true;
-    
-    const specs = matchingProducts[0].Specifications;
-    
-    return (
-      specs.Storage === values.storage &&
-      specs.RAM === values.ram &&
-      specs["Processor Type"] === values.processor &&
-      specs["Display Hz"] === values.display &&
-      specs["Camera MP"] === values.camera &&
-      specs["Battery Capacity"] === values.battery &&
-      (specs.OS === values.os || (!specs.OS && !values.os)) &&
-      (specs.Color === values.color || (!specs.Color && !values.color))
-    );
   };
 
   const months = [
@@ -395,9 +447,21 @@ const ProductsTab: React.FC = () => {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Storage</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g. 128GB" {...field} />
-                          </FormControl>
+                          <Select
+                            value={field.value}
+                            onValueChange={field.onChange}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select Storage" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {STORAGE_OPTIONS.map(option => (
+                                <SelectItem key={option} value={option}>{option}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -409,9 +473,21 @@ const ProductsTab: React.FC = () => {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>RAM</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g. 8GB" {...field} />
-                          </FormControl>
+                          <Select
+                            value={field.value}
+                            onValueChange={field.onChange}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select RAM" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {RAM_OPTIONS.map(option => (
+                                <SelectItem key={option} value={option}>{option}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -423,9 +499,21 @@ const ProductsTab: React.FC = () => {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Processor</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g. A15 Bionic" {...field} />
-                          </FormControl>
+                          <Select
+                            value={field.value}
+                            onValueChange={field.onChange}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select Processor" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {PROCESSOR_OPTIONS.map(option => (
+                                <SelectItem key={option} value={option}>{option}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -437,14 +525,21 @@ const ProductsTab: React.FC = () => {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Display Hz</FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="number" 
-                              placeholder="e.g. 120" 
-                              {...field}
-                              onChange={(e) => field.onChange(parseInt(e.target.value))}
-                            />
-                          </FormControl>
+                          <Select
+                            value={field.value.toString()}
+                            onValueChange={(value) => field.onChange(parseInt(value))}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select Display Hz" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {DISPLAY_HZ_OPTIONS.map(option => (
+                                <SelectItem key={option} value={option.toString()}>{option} Hz</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -456,14 +551,21 @@ const ProductsTab: React.FC = () => {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Camera MP</FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="number" 
-                              placeholder="e.g. 12" 
-                              {...field}
-                              onChange={(e) => field.onChange(parseInt(e.target.value))}
-                            />
-                          </FormControl>
+                          <Select
+                            value={field.value.toString()}
+                            onValueChange={(value) => field.onChange(parseInt(value))}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select Camera MP" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {CAMERA_MP_OPTIONS.map(option => (
+                                <SelectItem key={option} value={option.toString()}>{option} MP</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -475,9 +577,21 @@ const ProductsTab: React.FC = () => {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Battery Capacity</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g. 4000mAh" {...field} />
-                          </FormControl>
+                          <Select
+                            value={field.value}
+                            onValueChange={field.onChange}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select Battery" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {BATTERY_OPTIONS.map(option => (
+                                <SelectItem key={option} value={option}>{option}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -488,10 +602,22 @@ const ProductsTab: React.FC = () => {
                       name="os"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>OS (Optional)</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g. iOS 16" {...field} />
-                          </FormControl>
+                          <FormLabel>OS</FormLabel>
+                          <Select
+                            value={field.value || ""}
+                            onValueChange={field.onChange}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select OS" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {OS_OPTIONS.map(option => (
+                                <SelectItem key={option} value={option}>{option}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -502,10 +628,22 @@ const ProductsTab: React.FC = () => {
                       name="color"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Color (Optional)</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g. Midnight Black" {...field} />
-                          </FormControl>
+                          <FormLabel>Color</FormLabel>
+                          <Select
+                            value={field.value || ""}
+                            onValueChange={field.onChange}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select Color" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {COLOR_OPTIONS.map(option => (
+                                <SelectItem key={option} value={option}>{option}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -628,16 +766,16 @@ const ProductsTab: React.FC = () => {
             <CardHeader className="pb-2">
               <CardTitle className="text-lg">{product.name}</CardTitle>
               <CardDescription>
-                {product.category} - ${product.basePrice.toFixed(2)}
+                {product.category} - ${product.basePrice?.toFixed(2) || parseFloat(product.price.toString()).toFixed(2)}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div>
-                  <span className="font-medium">Stock:</span> {product.inventory}
+                  <span className="font-medium">Stock:</span> {product.inventory || 'N/A'}
                 </div>
                 <div>
-                  <span className="font-medium">Cost:</span> ${product.cost.toFixed(2)}
+                  <span className="font-medium">Cost:</span> ${product.cost?.toFixed(2) || 'N/A'}
                 </div>
               </div>
             </CardContent>

@@ -30,6 +30,8 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Search, Cpu, LineChart as LineChartIcon } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 
 const PricePredictionTab: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -46,32 +48,79 @@ const PricePredictionTab: React.FC = () => {
   const [profitMargin, setProfitMargin] = useState<number>(30); // Default 30%
   const [knnPredictedPrice, setKnnPredictedPrice] = useState<number | null>(null);
   const { toast } = useToast();
+  const { user } = useAuth();
+  const [predictedProducts, setPredictedProducts] = useState<Map<string, number>>(new Map());
   
   useEffect(() => {
-    // Load products
-    const allProducts = dataService.getAllProducts();
-    setProducts(allProducts);
+    // Load products for the current user
+    const fetchProducts = async () => {
+      setLoading(true);
+      
+      if (user) {
+        try {
+          const { data, error } = await supabase
+            .from('products')
+            .select('*')
+            .eq('user_id', user.id);
+            
+          if (error) throw error;
+          
+          const userProducts = data;
+          setProducts(userProducts);
+          
+          // If there are products, select the first one by default
+          if (userProducts.length > 0) {
+            setSelectedProductId(userProducts[0].id);
+          }
+        } catch (error) {
+          console.error('Error fetching user products:', error);
+          toast({
+            title: "Error",
+            description: "Failed to load products",
+            variant: "destructive"
+          });
+        }
+      } else {
+        // Fallback to local data if not logged in
+        const allProducts = dataService.getAllProducts();
+        setProducts(allProducts);
+        
+        if (allProducts.length > 0) {
+          setSelectedProductId(allProducts[0].id);
+        }
+      }
+      
+      // Extract unique models from the dataset
+      const dataset = dataService.getDataset();
+      if (dataset && dataset.length > 0) {
+        const uniqueModels = [...new Set(dataset.map(item => item.Model))];
+        setModels(uniqueModels);
+      }
+      
+      setLoading(false);
+    };
     
-    // Extract unique models from the dataset
-    const dataset = dataService.getDataset();
-    if (dataset && dataset.length > 0) {
-      const uniqueModels = [...new Set(dataset.map(item => item.Model))];
-      setModels(uniqueModels);
+    fetchProducts();
+    
+    // Track predicted products in session storage
+    const storedPredictions = sessionStorage.getItem('predictedProducts');
+    if (storedPredictions) {
+      try {
+        const predictionsMap = new Map(JSON.parse(storedPredictions));
+        setPredictedProducts(predictionsMap);
+      } catch (e) {
+        console.error('Failed to parse stored predictions', e);
+      }
     }
-    
-    // If there are products, select the first one by default
-    if (allProducts.length > 0) {
-      setSelectedProductId(allProducts[0].id);
-    }
-    
-    setLoading(false);
-  }, []);
+  }, [user, toast]);
   
   useEffect(() => {
     if (!selectedProductId) return;
     
     // Get the selected product
-    const product = dataService.getProductById(selectedProductId);
+    const product = products.find(p => p.id === selectedProductId) || 
+                    dataService.getProductById(selectedProductId);
+                    
     if (product) {
       setSelectedProduct(product);
       
@@ -81,6 +130,18 @@ const PricePredictionTab: React.FC = () => {
         setPrediction(pricePred);
         setAdjustedPrice(pricePred.optimalPrice);
         setBasePrice(pricePred.basePrice);
+        
+        // Save this prediction to session storage
+        const modelName = product.name;
+        const newPredictions = new Map(predictedProducts);
+        newPredictions.set(modelName, pricePred.optimalPrice);
+        setPredictedProducts(newPredictions);
+        
+        // Store in session storage as JSON
+        sessionStorage.setItem(
+          'predictedProducts', 
+          JSON.stringify(Array.from(newPredictions.entries()))
+        );
       }
       
       // Get competitor prices
@@ -106,7 +167,7 @@ const PricePredictionTab: React.FC = () => {
         // Add our base price and optimal price for comparison
         avgCompPrices.push({
           name: "Our Base Price",
-          price: product.basePrice
+          price: product.basePrice || parseFloat(product.price?.toString() || "0")
         });
         
         if (pricePred) {
@@ -119,7 +180,7 @@ const PricePredictionTab: React.FC = () => {
       
       setCompetitorPrices(avgCompPrices);
     }
-  }, [selectedProductId]);
+  }, [selectedProductId, products, predictedProducts]);
   
   // Prepare data for the factors radar chart
   const radarData = prediction ? [
@@ -137,7 +198,7 @@ const PricePredictionTab: React.FC = () => {
   const calculateProfit = (price: number): number => {
     if (!selectedProduct) return 0;
     
-    const cost = selectedProduct.cost;
+    const cost = selectedProduct.cost || (selectedProduct.basePrice ? selectedProduct.basePrice * 0.6 : parseFloat(selectedProduct.price?.toString() || "0") * 0.6);
     const unitProfit = price - cost;
     
     // Simplified demand model - lower as price increases
@@ -151,12 +212,12 @@ const PricePredictionTab: React.FC = () => {
   const generateProfitCurve = (): any[] => {
     if (!selectedProduct || !prediction) return [];
     
-    const baseCost = selectedProduct.cost;
-    const basePrice = selectedProduct.basePrice;
+    const basePrice = selectedProduct.basePrice || parseFloat(selectedProduct.price?.toString() || "0");
+    const cost = selectedProduct.cost || basePrice * 0.6;
     const optimalPrice = prediction.optimalPrice;
     
     // Generate price points from 80% to 120% of base price
-    const minPrice = Math.max(baseCost * 1.1, basePrice * 0.8);
+    const minPrice = Math.max(cost * 1.1, basePrice * 0.8);
     const maxPrice = basePrice * 1.3;
     const step = (maxPrice - minPrice) / 20;
     
@@ -193,6 +254,17 @@ const PricePredictionTab: React.FC = () => {
         // Get predicted price using KNN algorithm
         const predictedPrice = dataService.predictPrice(selectedModel, basePrice, profitMargin);
         setKnnPredictedPrice(predictedPrice);
+        
+        // Save this prediction to session storage
+        const newPredictions = new Map(predictedProducts);
+        newPredictions.set(selectedModel, predictedPrice);
+        setPredictedProducts(newPredictions);
+        
+        // Store in session storage as JSON
+        sessionStorage.setItem(
+          'predictedProducts', 
+          JSON.stringify(Array.from(newPredictions.entries()))
+        );
         
         toast({
           title: "Prediction Complete",
@@ -234,7 +306,9 @@ const PricePredictionTab: React.FC = () => {
                   <div className="flex justify-between">
                     <div>
                       <div className="text-sm font-medium text-muted-foreground">Base Price</div>
-                      <div className="text-2xl font-bold">{formatCurrency(selectedProduct.basePrice)}</div>
+                      <div className="text-2xl font-bold">
+                        {formatCurrency(selectedProduct.basePrice || parseFloat(selectedProduct.price?.toString() || "0"))}
+                      </div>
                     </div>
                     <div>
                       <div className="text-sm font-medium text-muted-foreground">Optimal Price</div>

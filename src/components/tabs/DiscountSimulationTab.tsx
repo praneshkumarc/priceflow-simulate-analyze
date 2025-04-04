@@ -1,432 +1,446 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Slider } from '@/components/ui/slider';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { dataService } from '@/services/dataService';
+import { Product, SimulationParams, SimulationResult } from '@/types';
 import { 
   LineChart, 
   Line, 
+  BarChart, 
+  Bar,
   XAxis, 
   YAxis, 
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer,
-  BarChart,
-  Bar,
-  Cell,
   Legend
 } from 'recharts';
-import { dataService } from '@/services/dataService';
-import { Product, SimulationParams, SimulationResult } from '@/types';
-import { formatCurrency, formatPercentage, formatNumber } from '@/utils/formatters';
-import ProductSelect from '../ProductSelect';
-import { Label } from "@/components/ui/label";
-import { Slider } from "@/components/ui/slider";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { ArrowRight, BarChart as BarChartIcon, LineChart as LineChartIcon, RefreshCw } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { formatCurrency, formatDate, formatPercentage } from '@/utils/formatters';
+import { Calendar as CalendarIcon, Calculator, Cpu, Loader2 } from 'lucide-react';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+
+interface PredictedProduct {
+  id: string;
+  name: string;
+  price: number;
+}
 
 const DiscountSimulationTab: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
+  const [predictedProducts, setPredictedProducts] = useState<PredictedProduct[]>([]);
   const [selectedProductId, setSelectedProductId] = useState<string>('');
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [simulations, setSimulations] = useState<SimulationResult[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [models, setModels] = useState<string[]>([]);
-  const [selectedModel, setSelectedModel] = useState<string>('');
-  
-  // Simulation params
-  const [discountRate, setDiscountRate] = useState<number>(0.1); // 10% default
-  const [expectedDemandIncrease, setExpectedDemandIncrease] = useState<number>(1.2); // 20% default
-  
-  // For comparison
-  const [compareMode, setCompareMode] = useState(false);
+  const [discountRate, setDiscountRate] = useState<number>(10);
+  const [startDate, setStartDate] = useState<Date>(new Date());
+  const [endDate, setEndDate] = useState<Date>(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)); // +7 days
+  const [expectedDemandIncrease, setExpectedDemandIncrease] = useState<number>(20);
+  const [simulationResult, setSimulationResult] = useState<SimulationResult | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [chartData, setChartData] = useState<any[]>([]);
+  const { user } = useAuth();
   
   useEffect(() => {
-    // Load products
-    const allProducts = dataService.getAllProducts();
-    setProducts(allProducts);
-    
-    // Extract unique models from the dataset
-    const dataset = dataService.getDataset();
-    if (dataset && dataset.length > 0) {
-      const uniqueModels = [...new Set(dataset.map(item => item.Model))];
-      setModels(uniqueModels);
-    }
-    
-    // If there are products, select the first one by default
-    if (allProducts.length > 0) {
-      setSelectedProductId(allProducts[0].id);
-    }
-    
-    setLoading(false);
-  }, []);
-  
-  useEffect(() => {
-    if (!selectedProductId) return;
-    
-    // Get the selected product
-    const product = dataService.getProductById(selectedProductId);
-    setSelectedProduct(product || null);
-    
-    // Clear simulations when product changes
-    setSimulations([]);
-  }, [selectedProductId]);
-  
-  // When selected model changes, get products with that model
-  useEffect(() => {
-    if (selectedModel) {
-      const matchingProducts = dataService.getProductsByModel(selectedModel);
-      if (matchingProducts.length > 0) {
-        setSelectedProductId(matchingProducts[0].id);
+    const fetchProducts = async () => {
+      // Get products from user's Supabase account
+      if (user) {
+        try {
+          const { data, error } = await supabase
+            .from('products')
+            .select('*')
+            .eq('user_id', user.id);
+            
+          if (error) throw error;
+          setProducts(data || []);
+        } catch (error) {
+          console.error('Error fetching products:', error);
+          setProducts([]);
+        }
+      } else {
+        const allProducts = dataService.getAllProducts();
+        setProducts(allProducts);
       }
-    }
-  }, [selectedModel]);
-  
-  const runSimulation = () => {
-    if (!selectedProductId || !selectedProduct) return;
-    
-    const today = new Date();
-    const futureDate = new Date();
-    futureDate.setDate(today.getDate() + 30); // 30 days simulation
-    
-    const params: SimulationParams = {
-      productId: selectedProductId,
-      discountRate,
-      startDate: today.toISOString().split('T')[0],
-      endDate: futureDate.toISOString().split('T')[0],
-      expectedDemandIncrease
+      
+      // Load predicted products from session storage
+      const storedPredictions = sessionStorage.getItem('predictedProducts');
+      if (storedPredictions) {
+        try {
+          const predictionsMap = new Map(JSON.parse(storedPredictions));
+          const predList: PredictedProduct[] = [];
+          
+          // Combine with products to get IDs
+          for (const [modelName, price] of predictionsMap.entries()) {
+            const matchedProduct = products.find(p => p.name === modelName);
+            if (matchedProduct) {
+              predList.push({
+                id: matchedProduct.id,
+                name: modelName,
+                price: price
+              });
+            }
+          }
+          
+          setPredictedProducts(predList);
+          
+          // Select first product by default
+          if (predList.length > 0 && !selectedProductId) {
+            setSelectedProductId(predList[0].id);
+          }
+        } catch (e) {
+          console.error('Failed to parse stored predictions', e);
+        }
+      }
     };
     
-    try {
-      const result = dataService.simulateDiscount(params);
-      setSimulations(prev => [...prev, result]);
-    } catch (error) {
-      console.error("Simulation error:", error);
-    }
-  };
+    fetchProducts();
+  }, [user, selectedProductId, products]);
   
-  const resetSimulations = () => {
-    setSimulations([]);
-  };
-  
-  // Generate data for comparison chart
-  const generateComparisonData = () => {
-    if (!selectedProduct || simulations.length === 0) return [];
+  const runSimulation = () => {
+    if (!selectedProductId) return;
     
-    // Original (no discount) scenario
-    const originalPrice = selectedProduct.basePrice;
-    const originalProfit = (originalPrice - selectedProduct.cost) * 100; // Assume 100 units
+    setIsLoading(true);
     
-    const comparisonData = simulations.map((sim, index) => {
-      return {
-        name: `Scenario ${index + 1}`,
-        discount: formatPercentage(1 - (sim.discountedPrice / sim.originalPrice)),
-        revenue: sim.expectedRevenue,
-        profit: sim.expectedProfit,
-        price: sim.discountedPrice
+    setTimeout(() => {
+      const params: SimulationParams = {
+        productId: selectedProductId,
+        discountRate: discountRate / 100,
+        startDate: format(startDate, 'yyyy-MM-dd'),
+        endDate: format(endDate, 'yyyy-MM-dd'),
+        expectedDemandIncrease: expectedDemandIncrease / 100,
       };
-    });
-    
-    // Add the baseline scenario (no discount)
-    comparisonData.unshift({
-      name: 'No Discount',
-      discount: '0%',
-      revenue: originalPrice * 100, // Assume 100 units as baseline
-      profit: originalProfit,
-      price: originalPrice
-    });
-    
-    return comparisonData;
+      
+      const result = dataService.simulateDiscount(params);
+      setSimulationResult(result);
+      
+      // Generate chart data
+      generateChartData(result);
+      
+      setIsLoading(false);
+    }, 800);  // Simulated delay for processing
   };
   
-  const comparisonData = generateComparisonData();
-  
-  // Generate data for effect curve
-  const generateEffectCurve = () => {
-    if (!selectedProduct) return [];
+  const generateChartData = (result: SimulationResult) => {
+    if (!result) return;
     
-    const discounts = [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4];
-    const data = [];
+    // Find the selected product to get its base price
+    const selectedProduct = products.find(p => p.id === selectedProductId);
+    if (!selectedProduct) return;
     
-    for (const disc of discounts) {
-      const discountedPrice = selectedProduct.basePrice * (1 - disc);
-      const priceChangePercent = disc;
-      const elasticity = -1.5;
-      const quantityChangePercent = priceChangePercent * elasticity;
+    // Find the matching predicted product for the actual price
+    const predPrice = predictedProducts.find(p => p.id === selectedProductId)?.price || 
+                       (selectedProduct.basePrice || parseFloat(selectedProduct.price?.toString() || "0"));
+    
+    // Comparison of revenue at different discount levels
+    const comparisonData = [];
+    for (let discount = 0; discount <= 50; discount += 5) {
+      // Discounted price
+      const discountedPrice = predPrice * (1 - discount / 100);
       
-      // Start with 100 units as baseline
-      const baselineQuantity = 100;
-      const expectedQuantity = baselineQuantity * (1 + quantityChangePercent);
-      const expectedRevenue = expectedQuantity * discountedPrice;
-      const expectedProfit = expectedQuantity * (discountedPrice - selectedProduct.cost);
+      // Estimated sales increase based on discount percentage
+      // Simple model: Higher discounts lead to higher sales increases
+      const salesIncrease = 1 + (discount / 100) * 2;  // E.g., 10% discount -> 20% sales increase
       
-      data.push({
-        discount: disc,
-        price: discountedPrice,
-        quantity: expectedQuantity,
-        revenue: expectedRevenue,
-        profit: expectedProfit
+      // Base sales (no discount)
+      const baseSales = 100;  // Placeholder value
+      
+      // Estimated sales with this discount
+      const estimatedSales = baseSales * salesIncrease;
+      
+      // Revenue at original price
+      const originalRevenue = baseSales * predPrice;
+      
+      // Revenue with discount
+      const discountedRevenue = estimatedSales * discountedPrice;
+      
+      // Profit calculation (assuming 60% cost of the price)
+      const cost = predPrice * 0.6;
+      const originalProfit = baseSales * (predPrice - cost);
+      const discountedProfit = estimatedSales * (discountedPrice - cost);
+      
+      comparisonData.push({
+        discount: `${discount}%`,
+        discountValue: discount,
+        originalRevenue,
+        discountedRevenue,
+        originalProfit,
+        discountedProfit,
+        revenue: discountedRevenue,
+        profit: discountedProfit,
+        sales: estimatedSales
       });
     }
     
-    return data;
+    setChartData(comparisonData);
   };
   
-  const effectCurveData = generateEffectCurve();
-  
-  const latestSimulation = simulations.length > 0 ? simulations[simulations.length - 1] : null;
-  
-  // Get product options with predicted prices
-  const getProductOptionsWithPredictions = () => {
-    return products.map(product => {
-      const prediction = dataService.predictOptimalPrice(product.id);
-      const predictedPrice = prediction ? prediction.optimalPrice : product.basePrice;
+  // Find the optimal discount rate based on profit
+  const findOptimalDiscount = () => {
+    if (!chartData.length) return null;
+    
+    const maxProfitEntry = chartData.reduce((max, entry) => 
+      entry.discountedProfit > max.discountedProfit ? entry : max, chartData[0]);
       
-      return {
-        id: product.id,
-        name: product.name,
-        basePrice: product.basePrice,
-        predictedPrice: predictedPrice,
-        // If has specifications and model, include it
-        model: product.specifications?.model || ''
-      };
-    });
+    return maxProfitEntry;
   };
   
-  const productOptions = getProductOptionsWithPredictions();
+  const optimalDiscount = findOptimalDiscount();
   
   return (
     <div className="space-y-6">
-      <div className="grid gap-6 md:grid-cols-3">
-        <Card className="md:col-span-2">
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
           <CardHeader>
             <CardTitle>Discount Simulation</CardTitle>
-            <CardDescription>Set parameters and run discount simulations</CardDescription>
+            <CardDescription>
+              Simulate the impact of discount on sales and revenue
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="grid md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="product">Product</Label>
+                <Select 
+                  value={selectedProductId} 
+                  onValueChange={setSelectedProductId}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a product" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {predictedProducts.map(product => (
+                      <SelectItem key={product.id} value={product.id}>
+                        {product.name} ({formatCurrency(product.price)})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {predictedProducts.length === 0 && (
+                  <p className="text-sm text-amber-600 mt-1">
+                    No predicted products available. Please predict prices for products first in the Price Prediction tab.
+                  </p>
+                )}
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Discount Rate: {discountRate}%</Label>
+                <Slider
+                  min={0}
+                  max={50}
+                  step={1}
+                  value={[discountRate]}
+                  onValueChange={(value) => setDiscountRate(value[0])}
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Select Model</Label>
-                  <Select
-                    value={selectedModel}
-                    onValueChange={setSelectedModel}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a Model" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {models.map(model => (
-                        <SelectItem key={model} value={model}>{model}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label>Start Date</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant={"outline"}
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !startDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {startDate ? format(startDate, "PPP") : <span>Pick a date</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={startDate}
+                        onSelect={(date) => date && setStartDate(date)}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
                 
                 <div className="space-y-2">
-                  <Label>Select Product</Label>
-                  <Select
-                    value={selectedProductId}
-                    onValueChange={setSelectedProductId}
-                    disabled={!products.length}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a Product" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {productOptions.map(option => (
-                        <SelectItem key={option.id} value={option.id}>
-                          {option.name} - {formatCurrency(option.predictedPrice)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label>End Date</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant={"outline"}
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !endDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {endDate ? format(endDate, "PPP") : <span>Pick a date</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={endDate}
+                        onSelect={(date) => date && setEndDate(date)}
+                        initialFocus
+                        disabled={(date) => date < startDate}
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
               </div>
               
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Discount Rate: {formatPercentage(discountRate)}</Label>
-                  <Slider
-                    value={[discountRate]}
-                    min={0}
-                    max={0.5}
-                    step={0.01}
-                    onValueChange={(value) => setDiscountRate(value[0])}
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label>Expected Demand Multiplier</Label>
-                  <div className="flex items-center space-x-2">
-                    <Input 
-                      type="number" 
-                      min={0.5} 
-                      max={3} 
-                      step={0.1}
-                      value={expectedDemandIncrease}
-                      onChange={(e) => setExpectedDemandIncrease(Number(e.target.value))}
-                    />
-                    <span className="text-sm text-muted-foreground">
-                      ({formatPercentage(expectedDemandIncrease - 1)} increase)
-                    </span>
-                  </div>
-                </div>
+              <div className="space-y-2">
+                <Label>Expected Demand Increase: {expectedDemandIncrease}%</Label>
+                <Slider
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={[expectedDemandIncrease]}
+                  onValueChange={(value) => setExpectedDemandIncrease(value[0])}
+                />
               </div>
               
-              <div className="flex justify-between items-center">
-                <Button
-                  variant="outline"
-                  onClick={resetSimulations}
-                  disabled={simulations.length === 0}
-                >
-                  <RefreshCw className="mr-2 h-4 w-4" /> Reset
-                </Button>
-                
-                <Button
-                  onClick={runSimulation}
-                  disabled={!selectedProductId}
-                >
-                  Run Simulation <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </div>
+              <Button 
+                onClick={runSimulation} 
+                disabled={!selectedProductId || isLoading}
+                className="w-full"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Running Simulation...
+                  </>
+                ) : (
+                  <>
+                    <Calculator className="mr-2 h-4 w-4" />
+                    Run Simulation
+                  </>
+                )}
+              </Button>
             </div>
           </CardContent>
         </Card>
         
-        {latestSimulation && (
+        {simulationResult && (
           <Card>
             <CardHeader>
-              <CardTitle>Latest Simulation</CardTitle>
+              <CardTitle>Simulation Results</CardTitle>
               <CardDescription>
-                {selectedProduct?.name || 'Product'} with {formatPercentage(discountRate)} discount
+                Impact of {discountRate}% discount on sales and revenue
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="border p-3 rounded-md">
-                    <div className="text-xs text-muted-foreground">Original Price</div>
-                    <div className="text-lg font-bold">{formatCurrency(latestSimulation.originalPrice)}</div>
+                  <div className="bg-muted rounded-lg p-3">
+                    <div className="text-sm font-medium text-muted-foreground">Original Price</div>
+                    <div className="text-2xl font-bold">{formatCurrency(simulationResult.originalPrice)}</div>
                   </div>
-                  <div className="border p-3 rounded-md">
-                    <div className="text-xs text-muted-foreground">Discounted Price</div>
-                    <div className="text-lg font-bold text-app-blue-500">{formatCurrency(latestSimulation.discountedPrice)}</div>
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <div className="text-sm font-medium">Expected Sales</div>
-                  <div className="text-xl font-bold">{formatNumber(latestSimulation.expectedSales)} units</div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="border p-3 rounded-md">
-                    <div className="text-xs text-muted-foreground">Expected Revenue</div>
-                    <div className="text-lg font-bold">{formatCurrency(latestSimulation.expectedRevenue)}</div>
-                  </div>
-                  <div className="border p-3 rounded-md">
-                    <div className="text-xs text-muted-foreground">Expected Profit</div>
-                    <div className="text-lg font-bold">{formatCurrency(latestSimulation.expectedProfit)}</div>
+                  <div className="bg-green-50 rounded-lg p-3">
+                    <div className="text-sm font-medium text-green-600">Discounted Price</div>
+                    <div className="text-2xl font-bold text-green-600">{formatCurrency(simulationResult.discountedPrice)}</div>
                   </div>
                 </div>
                 
-                <Button variant="outline" className="w-full" onClick={() => setCompareMode(!compareMode)}>
-                  {compareMode ? 'Hide Comparison' : 'Compare Scenarios'} <BarChartIcon className="ml-2 h-4 w-4" />
-                </Button>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-1">
+                    <div className="text-sm font-medium text-muted-foreground">Expected Sales</div>
+                    <div className="text-lg font-bold">{Math.round(simulationResult.expectedSales)} units</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-sm font-medium text-muted-foreground">Revenue</div>
+                    <div className="text-lg font-bold">{formatCurrency(simulationResult.expectedRevenue)}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-sm font-medium text-muted-foreground">Profit</div>
+                    <div className="text-lg font-bold">{formatCurrency(simulationResult.expectedProfit)}</div>
+                  </div>
+                </div>
+                
+                {optimalDiscount && (
+                  <div className="p-3 bg-blue-50 rounded-lg border border-blue-100 mt-4">
+                    <div className="font-medium text-blue-700 mb-1">Optimal Discount Recommendation</div>
+                    <div className="text-sm text-blue-600">
+                      Based on our simulation, the optimal discount would be 
+                      <span className="font-bold"> {optimalDiscount.discountValue}%</span>, 
+                      which would yield an estimated profit of 
+                      <span className="font-bold"> {formatCurrency(optimalDiscount.discountedProfit)}</span>.
+                    </div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
         )}
       </div>
       
-      {simulations.length > 0 && compareMode && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Scenario Comparison</CardTitle>
-            <CardDescription>Compare different discount scenarios</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[350px]">
+      {simulationResult && chartData.length > 0 && (
+        <div className="grid gap-6 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Revenue Comparison</CardTitle>
+              <CardDescription>
+                Comparison of revenue at different discount levels
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={comparisonData}>
+                <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip 
-                    formatter={(value, name) => [formatCurrency(Number(value)), name]}
-                    labelFormatter={(value) => `${value}`}
-                  />
+                  <XAxis dataKey="discount" />
+                  <YAxis tickFormatter={(value) => `$${Math.round(value / 1000)}k`} />
+                  <Tooltip formatter={(value) => formatCurrency(Number(value))} />
                   <Legend />
-                  <Bar dataKey="revenue" name="Revenue" fill="#3aa4ff" />
-                  <Bar dataKey="profit" name="Profit" fill="#4ac0c0" />
+                  <Line
+                    type="monotone"
+                    dataKey="revenue"
+                    name="Revenue"
+                    stroke="#2563eb"
+                    activeDot={{ r: 8 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="profit"
+                    name="Profit"
+                    stroke="#16a34a"
+                    activeDot={{ r: 8 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle>Sales at Different Discounts</CardTitle>
+              <CardDescription>
+                Estimated units sold at various discount levels
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="discount" />
+                  <YAxis />
+                  <Tooltip formatter={(value) => `${Math.round(Number(value))} units`} />
+                  <Bar
+                    dataKey="sales"
+                    name="Estimated Sales"
+                    fill="#3b82f6"
+                  />
                 </BarChart>
               </ResponsiveContainer>
-            </div>
-            
-            <div className="mt-6 border-t pt-4">
-              <h4 className="font-medium mb-2">Scenario Details</h4>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left pb-2">Scenario</th>
-                      <th className="text-left pb-2">Discount</th>
-                      <th className="text-left pb-2">Price</th>
-                      <th className="text-left pb-2">Revenue</th>
-                      <th className="text-left pb-2">Profit</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {comparisonData.map((scenario, index) => (
-                      <tr key={index} className="border-b last:border-0">
-                        <td className="py-2">{scenario.name}</td>
-                        <td className="py-2">{scenario.discount}</td>
-                        <td className="py-2">{formatCurrency(scenario.price)}</td>
-                        <td className="py-2">{formatCurrency(scenario.revenue)}</td>
-                        <td className="py-2">{formatCurrency(scenario.profit)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       )}
-      
-      <Card>
-        <CardHeader>
-          <CardTitle>Price Elasticity Effect</CardTitle>
-          <CardDescription>How discounts affect revenue and profit</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="h-[350px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={effectCurveData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis 
-                  dataKey="discount" 
-                  tickFormatter={(value) => formatPercentage(value)}
-                />
-                <YAxis />
-                <Tooltip 
-                  formatter={(value, name) => [formatCurrency(Number(value)), name]}
-                  labelFormatter={(value) => `Discount: ${formatPercentage(Number(value))}`}
-                />
-                <Legend />
-                <Line type="monotone" dataKey="revenue" name="Revenue" stroke="#3aa4ff" activeDot={{ r: 8 }} />
-                <Line type="monotone" dataKey="profit" name="Profit" stroke="#4ac0c0" activeDot={{ r: 8 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-          
-          <div className="mt-4 text-sm text-muted-foreground">
-            <p>This chart shows how different discount rates affect projected revenue and profit based on price elasticity modeling. 
-            The optimal discount rate typically balances increased sales volume with decreased unit margins.</p>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 };
