@@ -7,6 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
 import { Smartphone } from 'lucide-react';
+import { predictionService } from '@/services/predictionService';
+import { useToast } from '@/hooks/use-toast';
 
 interface SmartphonePricePredictorProps {
   model: any | null;
@@ -23,6 +25,7 @@ const SmartphonePricePredictor: React.FC<SmartphonePricePredictorProps> = ({ mod
   });
   
   const [predictedPrice, setPredictedPrice] = useState<number | null>(null);
+  const { toast } = useToast();
   
   const handleSpecChange = (spec: string, value: string) => {
     setSpecs(prev => ({ ...prev, [spec]: value }));
@@ -33,6 +36,28 @@ const SmartphonePricePredictor: React.FC<SmartphonePricePredictorProps> = ({ mod
     
     const price = model.predict(specs);
     setPredictedPrice(price);
+    
+    // Save the prediction to the prediction service
+    const productId = `smartphone-${specs.processor}-${specs.ram}-${specs.storage}`;
+    const prediction = {
+      productId,
+      basePrice: price * 0.9, // Just an example base price
+      optimalPrice: price,
+      confidence: 85,
+      factors: {
+        demandCoefficient: 0.8,
+        competitorInfluence: 0.3,
+        seasonalityFactor: 0.6,
+        marginOptimization: 0.7
+      }
+    };
+    
+    predictionService.savePrediction(prediction);
+    
+    toast({
+      title: "Price predicted",
+      description: `Optimal price: ${formatCurrency(price)}`,
+    });
   };
   
   const ramOptions = ['4GB', '6GB', '8GB', '12GB', '16GB'];

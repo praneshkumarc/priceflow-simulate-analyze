@@ -8,6 +8,8 @@ class PredictionService {
   public savePrediction(prediction: PricePrediction): void {
     this.predictedPrices[prediction.productId] = prediction.optimalPrice;
     this.predictedProducts[prediction.productId] = prediction;
+    console.log("Prediction saved:", prediction);
+    console.log("Current predictions:", this.predictedPrices);
   }
 
   public getPredictedPrice(productId: string): number | undefined {

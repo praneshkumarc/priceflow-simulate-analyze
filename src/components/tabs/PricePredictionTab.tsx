@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
@@ -20,6 +19,7 @@ import {
   Line
 } from 'recharts';
 import { dataService } from '@/services/dataService';
+import { predictionService } from '@/services/predictionService';
 import { Product, PricePrediction, SmartphoneInputData } from '@/types';
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
 import ProductSelect from '../ProductSelect';
@@ -56,6 +56,18 @@ const PricePredictionTab: React.FC = () => {
     if (dataset && dataset.length > 0) {
       const uniqueModels = [...new Set(dataset.map(item => item.Model))];
       setModels(uniqueModels);
+      
+      // Set first model as default if available
+      if (uniqueModels.length > 0 && !selectedModel) {
+        setSelectedModel(uniqueModels[0]);
+        
+        // Get average price for this model from the dataset
+        const modelItems = dataset.filter(item => item.Model === uniqueModels[0]);
+        if (modelItems.length > 0) {
+          const avgPrice = modelItems.reduce((sum, item) => sum + (item.Price || 0), 0) / modelItems.length;
+          setBasePrice(avgPrice);
+        }
+      }
     }
     
     // If there are user products, select the first one by default
@@ -126,7 +138,18 @@ const PricePredictionTab: React.FC = () => {
     }
   }, [selectedProductId, userAddedProducts]);
   
-  // Prepare data for the factors radar chart
+  useEffect(() => {
+    if (selectedModel && !basePrice) {
+      // Get average price for selected model from the dataset
+      const dataset = dataService.getDataset();
+      const modelItems = dataset.filter(item => item.Model === selectedModel);
+      if (modelItems.length > 0) {
+        const avgPrice = modelItems.reduce((sum, item) => sum + (item.Price || 0), 0) / modelItems.length;
+        setBasePrice(avgPrice);
+      }
+    }
+  }, [selectedModel, basePrice]);
+  
   const radarData = prediction ? [
     { subject: 'Demand', A: prediction.factors.demandCoefficient * 100, fullMark: 100 },
     { subject: 'Competition', A: (prediction.factors.competitorInfluence + 0.2) * 100, fullMark: 100 },
@@ -138,7 +161,6 @@ const PricePredictionTab: React.FC = () => {
     setAdjustedPrice(value[0]);
   };
   
-  // Calculate profit at different prices
   const calculateProfit = (price: number): number => {
     if (!selectedProduct) return 0;
     
@@ -152,7 +174,6 @@ const PricePredictionTab: React.FC = () => {
     return unitProfit * estimatedSales;
   };
   
-  // Generate profit curve data points
   const generateProfitCurve = (): any[] => {
     if (!selectedProduct || !prediction) return [];
     
@@ -178,7 +199,6 @@ const PricePredictionTab: React.FC = () => {
   
   const profitCurveData = generateProfitCurve();
   
-  // Run KNN price prediction
   const predictPriceWithKNN = () => {
     if (!selectedModel || basePrice <= 0) {
       toast({
@@ -198,6 +218,24 @@ const PricePredictionTab: React.FC = () => {
         // Get predicted price using KNN algorithm
         const predictedPrice = dataService.predictPrice(selectedModel, basePrice, profitMargin);
         setKnnPredictedPrice(predictedPrice);
+        
+        // Create and save the prediction
+        const productId = `model-${selectedModel}`;
+        const prediction = {
+          productId,
+          basePrice: basePrice,
+          optimalPrice: predictedPrice,
+          confidence: 90,
+          factors: {
+            demandCoefficient: 0.75,
+            competitorInfluence: 0.35,
+            seasonalityFactor: 0.55,
+            marginOptimization: 0.65
+          }
+        };
+        
+        predictionService.savePrediction(prediction);
+        console.log("KNN Prediction saved:", prediction);
         
         toast({
           title: "Prediction Complete",

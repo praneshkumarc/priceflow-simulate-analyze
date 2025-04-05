@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
@@ -58,43 +57,68 @@ const DiscountSimulationTab: React.FC = () => {
       setModels(uniqueModels);
     }
     
+    // Get model-based predictions directly from predictionService
+    const allPredictions = predictionService.getAllPredictedPrices();
+    console.log("All predicted prices:", allPredictions);
+    
     setLoading(false);
   }, [user]);
   
-  // When productsWithPredictions changes, update the selected product
   useEffect(() => {
-    console.log('Products with predictions updated:', productsWithPredictions);
-    console.log('Predicted prices:', predictedPrices);
+    // Get direct products with predictions from predictionService
+    const allProducts = dataService.getAllProducts();
+    const predictedProductIds = predictionService.getPredictedProductIds();
     
-    // If there are products with predictions, select the first one by default
-    if (productsWithPredictions.length > 0 && !selectedProductId) {
-      setSelectedProductId(productsWithPredictions[0].id);
+    console.log("Predicted product IDs:", predictedProductIds);
+    
+    // Check if we have model-based predictions
+    const modelPredictions = Object.keys(predictionService.getAllPredictedPrices())
+      .filter(id => id.startsWith('model-'))
+      .map(id => ({
+        id,
+        name: id.replace('model-', ''),
+        basePrice: 0,
+        category: 'Smartphone',
+        inventory: 0,
+        cost: 0,
+        seasonality: 0,
+        specifications: { model: id.replace('model-', '') }
+      }));
+    
+    console.log("Model predictions:", modelPredictions);
+    
+    // If we have model predictions but no products with predictions yet
+    if (modelPredictions.length > 0 && productsWithPredictions.length === 0) {
+      // Select the first model prediction
+      setSelectedProductId(modelPredictions[0].id);
+      setSelectedProduct(modelPredictions[0]);
+      setSelectedModel(modelPredictions[0].specifications?.model || '');
     }
-  }, [productsWithPredictions, predictedPrices]);
+  }, [productsWithPredictions]);
   
   useEffect(() => {
-    if (!selectedProductId) return;
-    
-    // Get the selected product from products with predictions
-    const product = productsWithPredictions.find(p => p.id === selectedProductId);
-    setSelectedProduct(product || null);
-    
-    // Clear simulations when product changes
-    setSimulations([]);
-  }, [selectedProductId, productsWithPredictions]);
-  
-  // When selected model changes, find a matching product with prediction
-  useEffect(() => {
-    if (selectedModel && productsWithPredictions.length > 0) {
-      const matchingProduct = productsWithPredictions.find(p => 
-        p.specifications?.model === selectedModel
-      );
-      
-      if (matchingProduct) {
-        setSelectedProductId(matchingProduct.id);
+    if (selectedModel) {
+      const productId = `model-${selectedModel}`;
+      if (predictionService.hasPrediction(productId)) {
+        setSelectedProductId(productId);
+        
+        // Create a product object for the model
+        const modelProduct = {
+          id: productId,
+          name: selectedModel,
+          basePrice: 0, // Will be updated from prediction
+          category: 'Smartphone',
+          inventory: 0,
+          cost: 0,
+          seasonality: 0,
+          specifications: { model: selectedModel }
+        };
+        
+        setSelectedProduct(modelProduct);
+        console.log("Selected model product:", modelProduct);
       }
     }
-  }, [selectedModel, productsWithPredictions]);
+  }, [selectedModel]);
   
   const runSimulation = () => {
     if (!selectedProductId || !selectedProduct) return;
@@ -103,8 +127,11 @@ const DiscountSimulationTab: React.FC = () => {
     const futureDate = new Date();
     futureDate.setDate(today.getDate() + 30); // 30 days simulation
     
-    // Use predictedPrice if available, otherwise use basePrice
-    const originalPrice = predictedPrices[selectedProductId] || selectedProduct.basePrice;
+    // Use predictedPrice from predictionService if available
+    const predictedPrice = predictionService.getPredictedPrice(selectedProductId);
+    const originalPrice = predictedPrice || selectedProduct.basePrice;
+    
+    console.log("Running simulation with price:", originalPrice);
     
     const params: SimulationParams = {
       productId: selectedProductId,
@@ -126,7 +153,6 @@ const DiscountSimulationTab: React.FC = () => {
     setSimulations([]);
   };
   
-  // Generate data for comparison chart
   const generateComparisonData = () => {
     if (!selectedProduct || simulations.length === 0) return [];
     
@@ -158,7 +184,6 @@ const DiscountSimulationTab: React.FC = () => {
   
   const comparisonData = generateComparisonData();
   
-  // Generate data for effect curve
   const generateEffectCurve = () => {
     if (!selectedProduct) return [];
     
@@ -196,7 +221,6 @@ const DiscountSimulationTab: React.FC = () => {
   
   const latestSimulation = simulations.length > 0 ? simulations[simulations.length - 1] : null;
   
-  // Get product options with predicted prices
   const getProductOptionsWithPredictions = () => {
     return productsWithPredictions.map(product => {
       const predictedPrice = predictedPrices[product.id] || product.basePrice;
@@ -235,7 +259,7 @@ const DiscountSimulationTab: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {productsWithPredictions.length === 0 ? (
+              {productsWithPredictions.length === 0 && predictionService.getPredictedProductIds().length === 0 ? (
                 <div className="text-center p-4 border border-dashed rounded-md">
                   <p className="text-muted-foreground">
                     {user ? "No products with predictions found. Generate price predictions in the Price Prediction tab first." 
@@ -243,7 +267,7 @@ const DiscountSimulationTab: React.FC = () => {
                   </p>
                 </div>
               ) : (
-                <>
+                <div className="space-y-4">
                   <div className="grid md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Select Model</Label>
@@ -308,7 +332,7 @@ const DiscountSimulationTab: React.FC = () => {
                   <div className="flex justify-between items-center">
                     <Button
                       variant="outline"
-                      onClick={resetSimulations}
+                      onClick={() => setSimulations([])}
                       disabled={simulations.length === 0}
                     >
                       <RefreshCw className="mr-2 h-4 w-4" /> Reset
@@ -321,7 +345,7 @@ const DiscountSimulationTab: React.FC = () => {
                       Run Simulation <ArrowRight className="ml-2 h-4 w-4" />
                     </Button>
                   </div>
-                </>
+                </div>
               )}
             </div>
           </CardContent>
