@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
@@ -33,7 +34,7 @@ import { useProductSelection } from '@/hooks/use-product-selection';
 import { useAuth } from '@/contexts/AuthContext';
 
 const PricePredictionTab: React.FC = () => {
-  const { userAddedProducts, predictedPrices, savePrediction } = useProductSelection();
+  const { userAddedProducts, predictedPrices, savePrediction, refreshProducts } = useProductSelection();
   const [selectedProductId, setSelectedProductId] = useState<string>('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [prediction, setPrediction] = useState<PricePrediction | null>(null);
@@ -81,7 +82,10 @@ const PricePredictionTab: React.FC = () => {
         setBasePrice(pricePred.basePrice);
         
         // Save the prediction to the database
-        savePrediction(selectedProductId, pricePred);
+        savePrediction(selectedProductId, pricePred).then(() => {
+          // Refresh products with predictions after saving
+          refreshProducts();
+        });
       }
       
       // Get competitor prices

@@ -1,638 +1,764 @@
-import { 
-  Product, 
-  ProductSale, 
-  CompetitorPrice, 
-  Category, 
-  PriceFactors,
-  PricePrediction,
-  SimulationParams,
-  SimulationResult,
-  SalesTrend,
-  SmartphoneProduct,
-  SmartphoneInputData
-} from "@/types";
-import { initializeMockData } from "./mockData";
+import { Product, ProductSale, CompetitorPrice, PricePrediction, SimulationParams, SimulationResult, SmartphoneInputData } from "@/types";
+import * as tf from '@tensorflow/tfjs';
 
 class DataService {
-  private products: Product[] = [];
-  private sales: ProductSale[] = [];
-  private competitorPrices: CompetitorPrice[] = [];
-  private categories: Category[] = [];
-  private dataset: SmartphoneInputData[] | null = null;
-  
-  constructor() {
-    this.loadData();
-  }
-  
-  private loadData(): void {
-    const mockData = initializeMockData();
-    this.products = mockData.products;
-    this.sales = mockData.sales;
-    this.competitorPrices = mockData.competitorPrices;
-    this.categories = mockData.categories;
-  }
-  
-  // Method to get the dataset
-  public getDataset(): SmartphoneInputData[] | null {
-    return this.dataset;
-  }
-  
-  // Method to update dataset with uploaded data
-  public updateDataset(data: SmartphoneInputData[]): void {
-    this.dataset = data;
-  }
-  
-  // Method to add a new product 
-  public addProduct(productData: SmartphoneInputData): void {
-    // Generate a unique ID for the new product
-    const productId = `product-${Date.now()}`;
-    
-    // Create the base product object
-    const newProduct: Product = {
-      id: productId,
-      name: `${productData.Brand} ${productData.Model}`,
-      basePrice: typeof productData.Price === 'string' ? parseFloat(productData.Price) : productData.Price,
-      category: productData.Category,
-      inventory: productData.Stock || 10,
-      cost: typeof productData["Original Price"] === 'string' ? 
-        parseFloat(productData["Original Price"]) : 
-        (productData["Original Price"] || 0),
-      seasonality: productData["Seasonal Effect"] ? productData["Seasonal Effect"] / 10 : 0.5,
+  private products: Product[] = [
+    {
+      id: '1',
+      name: 'Generic T-Shirt',
+      basePrice: 25,
+      category: 'Apparel',
+      inventory: 150,
+      cost: 12,
+      seasonality: 0.2,
       specifications: {
-        ...productData.Specifications,
-        brand: productData.Brand,
-        model: productData.Model
+        color: 'Various',
+        size: 'S, M, L',
+        material: 'Cotton'
       }
-    };
-    
-    // Add to products array
-    this.products.push(newProduct);
-    
-    // Generate sample sales data for the new product
-    this.generateSalesDataForProduct(productId, productData);
-    
-    // Add competitor price if available
-    if (productData["Competitor Price"]) {
-      this.addCompetitorPrice(productId, productData["Competitor Price"]);
-    }
-    
-    // Update dataset to include the new product
-    if (this.dataset) {
-      this.dataset.push(productData);
-    } else {
-      this.dataset = [productData];
-    }
-  }
-  
-  // Method to generate sales data for a specific product
-  private generateSalesDataForProduct(productId: string, productData: SmartphoneInputData): void {
-    const now = new Date();
-    const basePrice = typeof productData.Price === 'string' ? parseFloat(productData.Price) : productData.Price;
-    
-    // Generate between 5-15 sales
-    const salesCount = Math.floor(Math.random() * 10) + 5;
-    
-    for (let i = 0; i < salesCount; i++) {
-      // Random date in the last 90 days
-      const date = new Date();
-      date.setDate(now.getDate() - Math.floor(Math.random() * 90));
-      
-      // Random quantity between 1-5
-      const quantity = Math.floor(Math.random() * 5) + 1;
-      
-      // Price with minor variations around the base price
-      const variation = (Math.random() * 0.2) - 0.1; // -10% to +10%
-      const price = basePrice * (1 + variation);
-      
-      this.sales.push({
-        id: `sale-${this.sales.length + 1}`,
-        productId: productId,
-        date: date.toISOString().split('T')[0],
-        quantity,
-        price: Math.round(price * 100) / 100
-      });
-    }
-    
-    // Sort by date, newest first
-    this.sales.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }
-  
-  // Method to add a competitor price for a product
-  private addCompetitorPrice(productId: string, price: number): void {
-    const competitors = ['CompetitorA', 'CompetitorB', 'CompetitorC'];
-    
-    // Random competitor
-    const competitor = competitors[Math.floor(Math.random() * competitors.length)];
-    
-    this.competitorPrices.push({
-      productId: productId,
-      competitorName: competitor,
-      price: Math.round(price * 100) / 100,
-      date: new Date().toISOString().split('T')[0]
-    });
-  }
-  
-  // Method to update products with uploaded data
-  public updateProducts(newProducts: Product[]): void {
-    // Replace the existing products with the new ones
-    this.products = [...newProducts];
-    
-    // Generate new sales data based on the new products
-    this.generateSalesData();
-    
-    // Generate new competitor prices
-    this.generateCompetitorPrices();
-  }
-  
-  // Generate sample sales data for the new products
-  private generateSalesData(): void {
-    this.sales = [];
-    
-    // For each product, generate some sample sales over the last 90 days
-    this.products.forEach(product => {
-      const now = new Date();
-      
-      // Generate between 10-30 sales per product
-      const salesCount = Math.floor(Math.random() * 20) + 10;
-      
-      for (let i = 0; i < salesCount; i++) {
-        // Random date in the last 90 days
-        const date = new Date();
-        date.setDate(now.getDate() - Math.floor(Math.random() * 90));
-        
-        // Random quantity between 1-10
-        const quantity = Math.floor(Math.random() * 10) + 1;
-        
-        // Price with minor variations around the base price
-        const variation = (Math.random() * 0.2) - 0.1; // -10% to +10%
-        const price = product.basePrice * (1 + variation);
-        
-        this.sales.push({
-          id: `sale-${this.sales.length + 1}`,
-          productId: product.id,
-          date: date.toISOString().split('T')[0],
-          quantity,
-          price: Math.round(price * 100) / 100
-        });
+    },
+    {
+      id: '2',
+      name: 'Leather Wallet',
+      basePrice: 45,
+      category: 'Accessories',
+      inventory: 80,
+      cost: 20,
+      seasonality: 0.1,
+      specifications: {
+        material: 'Genuine Leather',
+        color: 'Black, Brown',
+        size: 'Standard'
       }
-    });
-    
-    // Sort by date, newest first
-    this.sales.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }
-  
-  // Generate sample competitor prices
-  private generateCompetitorPrices(): void {
-    this.competitorPrices = [];
-    
-    const competitors = ['CompetitorA', 'CompetitorB', 'CompetitorC'];
-    
-    this.products.forEach(product => {
-      competitors.forEach(competitor => {
-        // Random variation from product's base price
-        const variation = (Math.random() * 0.3) - 0.15; // -15% to +15%
-        const price = product.basePrice * (1 + variation);
-        
-        this.competitorPrices.push({
-          productId: product.id,
-          competitorName: competitor,
-          price: Math.round(price * 100) / 100,
-          date: new Date().toISOString().split('T')[0]
-        });
-      });
-    });
-  }
-  
-  // Product methods
+    },
+    {
+      id: '3',
+      name: 'Ceramic Mug',
+      basePrice: 15,
+      category: 'Home Goods',
+      inventory: 200,
+      cost: 7,
+      seasonality: 0.3,
+      specifications: {
+        design: 'Various',
+        capacity: '12 oz',
+        material: 'Ceramic'
+      }
+    },
+    {
+      id: '4',
+      name: 'Wireless Mouse',
+      basePrice: 30,
+      category: 'Electronics',
+      inventory: 120,
+      cost: 15,
+      seasonality: 0.05,
+      specifications: {
+        connectivity: 'Bluetooth',
+        color: 'Black, White',
+        dpi: '1600'
+      }
+    },
+    {
+      id: '5',
+      name: 'Running Shoes',
+      basePrice: 80,
+      category: 'Footwear',
+      inventory: 90,
+      cost: 40,
+      seasonality: 0.4,
+      specifications: {
+        size: '7-12',
+        color: 'Blue, Gray',
+        material: 'Mesh'
+      }
+    },
+    {
+      id: '6',
+      name: 'Denim Jeans',
+      basePrice: 60,
+      category: 'Apparel',
+      inventory: 110,
+      cost: 30,
+      seasonality: 0.15,
+      specifications: {
+        size: '28-36',
+        color: 'Blue',
+        fit: 'Slim Fit'
+      }
+    },
+    {
+      id: '7',
+      name: 'Canvas Backpack',
+      basePrice: 50,
+      category: 'Accessories',
+      inventory: 70,
+      cost: 25,
+      seasonality: 0.25,
+      specifications: {
+        color: 'Green, Beige',
+        capacity: '20L',
+        material: 'Canvas'
+      }
+    },
+    {
+      id: '8',
+      name: 'Glass Vase',
+      basePrice: 20,
+      category: 'Home Goods',
+      inventory: 180,
+      cost: 10,
+      seasonality: 0.35,
+      specifications: {
+        design: 'Clear',
+        height: '10 inches',
+        material: 'Glass'
+      }
+    },
+    {
+      id: '9',
+      name: 'USB Keyboard',
+      basePrice: 40,
+      category: 'Electronics',
+      inventory: 100,
+      cost: 20,
+      seasonality: 0.1,
+      specifications: {
+        connectivity: 'USB',
+        color: 'Black',
+        type: 'Mechanical'
+      }
+    },
+    {
+      id: '10',
+      name: 'Hiking Boots',
+      basePrice: 90,
+      category: 'Footwear',
+      inventory: 60,
+      cost: 45,
+      seasonality: 0.45,
+      specifications: {
+        size: '7-12',
+        color: 'Brown',
+        material: 'Leather'
+      }
+    }
+  ];
+  private productSales: ProductSale[] = [
+    {
+      id: 'sale1',
+      productId: '1',
+      date: '2024-01-01',
+      quantity: 10,
+      price: 25
+    },
+    {
+      id: 'sale2',
+      productId: '1',
+      date: '2024-01-08',
+      quantity: 8,
+      price: 25
+    },
+    {
+      id: 'sale3',
+      productId: '1',
+      date: '2024-01-15',
+      quantity: 12,
+      price: 25
+    },
+    {
+      id: 'sale4',
+      productId: '2',
+      date: '2024-01-01',
+      quantity: 5,
+      price: 45
+    },
+    {
+      id: 'sale5',
+      productId: '2',
+      date: '2024-01-08',
+      quantity: 7,
+      price: 45
+    },
+    {
+      id: 'sale6',
+      productId: '3',
+      date: '2024-01-01',
+      quantity: 15,
+      price: 15
+    },
+    {
+      id: 'sale7',
+      productId: '3',
+      date: '2024-01-08',
+      quantity: 10,
+      price: 15
+    },
+    {
+      id: 'sale8',
+      productId: '4',
+      date: '2024-01-01',
+      quantity: 6,
+      price: 30
+    },
+    {
+      id: 'sale9',
+      productId: '4',
+      date: '2024-01-08',
+      quantity: 8,
+      price: 30
+    },
+    {
+      id: 'sale10',
+      productId: '5',
+      date: '2024-01-01',
+      quantity: 4,
+      price: 80
+    }
+  ];
+  private competitorPrices: CompetitorPrice[] = [
+    {
+      productId: '1',
+      competitorName: 'Competitor A',
+      price: 27,
+      date: '2024-01-01'
+    },
+    {
+      productId: '1',
+      competitorName: 'Competitor B',
+      price: 26,
+      date: '2024-01-01'
+    },
+    {
+      productId: '1',
+      competitorName: 'Competitor A',
+      price: 28,
+      date: '2024-01-15'
+    },
+    {
+      productId: '2',
+      competitorName: 'Competitor C',
+      price: 47,
+      date: '2024-01-01'
+    },
+    {
+      productId: '2',
+      competitorName: 'Competitor D',
+      price: 46,
+      date: '2024-01-01'
+    },
+    {
+      productId: '3',
+      competitorName: 'Competitor E',
+      price: 16,
+      date: '2024-01-01'
+    },
+    {
+      productId: '3',
+      competitorName: 'Competitor F',
+      price: 15,
+      date: '2024-01-01'
+    },
+    {
+      productId: '4',
+      competitorName: 'Competitor G',
+      price: 32,
+      date: '2024-01-01'
+    },
+    {
+      productId: '4',
+      competitorName: 'Competitor H',
+      price: 31,
+      date: '2024-01-01'
+    },
+    {
+      productId: '5',
+      competitorName: 'Competitor I',
+      price: 82,
+      date: '2024-01-01'
+    }
+  ];
+  private dataset: SmartphoneInputData[] = [
+    {
+      Brand: "Samsung",
+      Model: "Galaxy S21",
+      Price: 799,
+      "Original Price": 999,
+      Stock: 150,
+      Category: "Smartphones",
+      Specifications: {
+        Storage: "128GB",
+        RAM: "8GB",
+        "Processor Type": "Snapdragon 888",
+        "Display Hz": 120,
+        "Camera MP": 12,
+        "Battery Capacity": "4000mAh"
+      },
+      "Month of Sale": "January",
+      "Seasonal Effect": 1.1,
+      "Competitor Price": 750,
+      "Demand Level": 0.8,
+      year_of_sale: 2023
+    },
+    {
+      Brand: "Apple",
+      Model: "iPhone 13",
+      Price: 899,
+      "Original Price": 999,
+      Stock: 100,
+      Category: "Smartphones",
+      Specifications: {
+        Storage: "256GB",
+        RAM: "6GB",
+        "Processor Type": "A15 Bionic",
+        "Display Hz": 60,
+        "Camera MP": 12,
+        "Battery Capacity": "3240mAh"
+      },
+      "Month of Sale": "January",
+      "Seasonal Effect": 1.2,
+      "Competitor Price": 850,
+      "Demand Level": 0.9,
+      year_of_sale: 2023
+    },
+    {
+      Brand: "Google",
+      Model: "Pixel 6",
+      Price: 699,
+      "Original Price": 799,
+      Stock: 120,
+      Category: "Smartphones",
+      Specifications: {
+        Storage: "128GB",
+        RAM: "8GB",
+        "Processor Type": "Tensor",
+        "Display Hz": 90,
+        "Camera MP": 50,
+        "Battery Capacity": "4614mAh"
+      },
+      "Month of Sale": "January",
+      "Seasonal Effect": 1.0,
+      "Competitor Price": 650,
+      "Demand Level": 0.7,
+      year_of_sale: 2023
+    },
+    {
+      Brand: "Samsung",
+      Model: "Galaxy S21",
+      Price: 799,
+      "Original Price": 999,
+      Stock: 150,
+      Category: "Smartphones",
+      Specifications: {
+        Storage: "128GB",
+        RAM: "8GB",
+        "Processor Type": "Snapdragon 888",
+        "Display Hz": 120,
+        "Camera MP": 12,
+        "Battery Capacity": "4000mAh"
+      },
+      "Month of Sale": "February",
+      "Seasonal Effect": 0.9,
+      "Competitor Price": 750,
+      "Demand Level": 0.8,
+      year_of_sale: 2023
+    },
+    {
+      Brand: "Apple",
+      Model: "iPhone 13",
+      Price: 899,
+      "Original Price": 999,
+      Stock: 100,
+      Category: "Smartphones",
+      Specifications: {
+        Storage: "256GB",
+        RAM: "6GB",
+        "Processor Type": "A15 Bionic",
+        "Display Hz": 60,
+        "Camera MP": 12,
+        "Battery Capacity": "3240mAh"
+      },
+      "Month of Sale": "February",
+      "Seasonal Effect": 1.1,
+      "Competitor Price": 850,
+      "Demand Level": 0.9,
+      year_of_sale: 2023
+    },
+    {
+      Brand: "Google",
+      Model: "Pixel 6",
+      Price: 699,
+      "Original Price": 799,
+      Stock: 120,
+      Category: "Smartphones",
+      Specifications: {
+        Storage: "128GB",
+        RAM: "8GB",
+        "Processor Type": "Tensor",
+        "Display Hz": 90,
+        "Camera MP": 50,
+        "Battery Capacity": "4614mAh"
+      },
+      "Month of Sale": "February",
+      "Seasonal Effect": 0.8,
+      "Competitor Price": 650,
+      "Demand Level": 0.7,
+      year_of_sale: 2023
+    },
+    {
+      Brand: "Samsung",
+      Model: "Galaxy S21",
+      Price: 799,
+      "Original Price": 999,
+      Stock: 150,
+      Category: "Smartphones",
+      Specifications: {
+        Storage: "128GB",
+        RAM: "8GB",
+        "Processor Type": "Snapdragon 888",
+        "Display Hz": 120,
+        "Camera MP": 12,
+        "Battery Capacity": "4000mAh"
+      },
+      "Month of Sale": "March",
+      "Seasonal Effect": 1.2,
+      "Competitor Price": 750,
+      "Demand Level": 0.8,
+      year_of_sale: 2023
+    },
+    {
+      Brand: "Apple",
+      Model: "iPhone 13",
+      Price: 899,
+      "Original Price": 999,
+      Stock: 100,
+      Category: "Smartphones",
+      Specifications: {
+        Storage: "256GB",
+        RAM: "6GB",
+        "Processor Type": "A15 Bionic",
+        "Display Hz": 60,
+        "Camera MP": 12,
+        "Battery Capacity": "3240mAh"
+      },
+      "Month of Sale": "March",
+      "Seasonal Effect": 1.3,
+      "Competitor Price": 850,
+      "Demand Level": 0.9,
+      year_of_sale: 2023
+    },
+    {
+      Brand: "Google",
+      Model: "Pixel 6",
+      Price: 699,
+      "Original Price": 799,
+      Stock: 120,
+      Category: "Smartphones",
+      Specifications: {
+        Storage: "128GB",
+        RAM: "8GB",
+        "Processor Type": "Tensor",
+        "Display Hz": 90,
+        "Camera MP": 50,
+        "Battery Capacity": "4614mAh"
+      },
+      "Month of Sale": "March",
+      "Seasonal Effect": 1.1,
+      "Competitor Price": 650,
+      "Demand Level": 0.7,
+      year_of_sale: 2023
+    },
+    {
+      Brand: "Samsung",
+      Model: "Galaxy S22",
+      Price: 899,
+      "Original Price": 1099,
+      Stock: 140,
+      Category: "Smartphones",
+      Specifications: {
+        Storage: "256GB",
+        RAM: "8GB",
+        "Processor Type": "Snapdragon 8 Gen 1",
+        "Display Hz": 120,
+        "Camera MP": 50,
+        "Battery Capacity": "4500mAh"
+      },
+      "Month of Sale": "April",
+      "Seasonal Effect": 1.0,
+      "Competitor Price": 850,
+      "Demand Level": 0.85,
+      year_of_sale: 2023
+    },
+    {
+      Brand: "Apple",
+      Model: "iPhone 13",
+      Price: 899,
+      "Original Price": 999,
+      Stock: 90,
+      Category: "Smartphones",
+      Specifications: {
+        Storage: "256GB",
+        RAM: "6GB",
+        "Processor Type": "A15 Bionic",
+        "Display Hz": 60,
+        "Camera MP": 12,
+        "Battery Capacity": "3240mAh"
+      },
+      "Month of Sale": "April",
+      "Seasonal Effect": 1.2,
+      "Competitor Price": 850,
+      "Demand Level": 0.9,
+      year_of_sale: 2023
+    },
+    {
+      Brand: "Google",
+      Model: "Pixel 6 Pro",
+      Price: 799,
+      "Original Price": 899,
+      Stock: 110,
+      Category: "Smartphones",
+      Specifications: {
+        Storage: "128GB",
+        RAM: "12GB",
+        "Processor Type": "Tensor",
+        "Display Hz": 120,
+        "Camera MP": 50,
+        "Battery Capacity": "5003mAh"
+      },
+      "Month of Sale": "April",
+      "Seasonal Effect": 1.1,
+      "Competitor Price": 750,
+      "Demand Level": 0.8,
+      year_of_sale: 2023
+    },
+    {
+      Brand: "Samsung",
+      Model: "Galaxy S22",
+      Price: 899,
+      "Original Price": 1099,
+      Stock: 130,
+      Category: "Smartphones",
+      Specifications: {
+        Storage: "256GB",
+        RAM: "8GB",
+        "Processor Type": "Snapdragon 8 Gen 1",
+        "Display Hz": 120,
+        "Camera MP": 50,
+        "Battery Capacity": "4500mAh"
+      },
+      "Month of Sale": "May",
+      "Seasonal Effect": 0.9,
+      "Competitor Price": 850,
+      "Demand Level": 0.85,
+      year_of_sale: 2023
+    },
+    {
+      Brand: "Apple",
+      Model: "iPhone 13 Pro",
+      Price: 1099,
+      "Original Price": 1199,
+      Stock: 80,
+      Category: "Smartphones",
+      Specifications: {
+        Storage: "256GB",
+        RAM: "6GB",
+        "Processor Type": "A15 Bionic",
+        "Display Hz": 120,
+        "Camera MP": 12,
+        "Battery Capacity": "3095mAh"
+      },
+      "Month of Sale": "May",
+      "Seasonal Effect": 1.3,
+      "Competitor Price": 1050,
+      "Demand Level": 0.95,
+      year_of_sale: 2023
+    },
+    {
+      Brand: "Google",
+      Model: "Pixel 6 Pro",
+      Price: 799,
+      "Original Price": 899,
+      Stock: 100,
+      Category: "Smartphones",
+      Specifications: {
+        Storage: "128GB",
+        RAM: "12GB",
+        "Processor Type": "Tensor",
+        "Display Hz": 120,
+        "Camera MP": 50,
+        "Battery Capacity": "5003mAh"
+      },
+      "Month of Sale": "May",
+      "Seasonal Effect": 1.2,
+      "Competitor Price": 750,
+      "Demand Level": 0.8,
+      year_of_sale: 2023
+    },
+    {
+      Brand: "Samsung",
+      Model: "Galaxy S22",
+      Price: 899,
+      "Original Price": 1099,
+      Stock: 120,
+      Category: "Smartphones",
+      Specifications: {
+        Storage: "256GB",
+        RAM: "8GB",
+        "Processor Type": "Snapdragon 8 Gen 1",
+        "Display Hz": 120,
+        "Camera MP": 50,
+        "Battery Capacity": "4500mAh"
+      },
+      "Month of Sale": "June",
+      "Seasonal Effect": 1.1,
+      "Competitor Price": 850,
+      "Demand Level": 0.85,
+      year_of_sale: 2023
+    },
+    {
+      Brand: "Apple",
+      Model: "iPhone 13 Pro",
+      Price: 1099,
+      "Original Price": 1199,
+      Stock: 70,
+      Category: "Smartphones",
+      Specifications: {
+        Storage: "256GB",
+        RAM: "6GB",
+        "Processor Type": "A15 Bionic",
+        "Display Hz": 120,
+        "Camera MP": 12,
+        "Battery Capacity": "3095mAh"
+      },
+      "Month of Sale": "June",
+      "Seasonal Effect": 1.4,
+      "Competitor Price": 1050,
+      "Demand Level": 0.95,
+      year_of_sale: 2023
+    },
+    {
+      Brand: "Google",
+      Model: "Pixel 6 Pro",
+      Price: 799,
+      "Original Price": 899,
+      Stock: 90,
+      Category: "Smartphones",
+      Specifications: {
+        Storage: "128GB",
+        RAM: "12GB",
+        "Processor Type": "Tensor",
+        "Display Hz": 120,
+        "Camera MP": 50,
+        "Battery Capacity": "5003mAh"
+      },
+      "Month of Sale": "June",
+      "Seasonal Effect": 1.3,
+      "Competitor Price": 750,
+      "Demand Level": 0.8,
+      year_of_sale: 2023
+    }
+  ];
+
   public getAllProducts(): Product[] {
-    return [...this.products];
+    return this.products;
   }
-  
+
   public getProductById(id: string): Product | undefined {
-    return this.products.find(p => p.id === id);
+    return this.products.find(product => product.id === id);
   }
-  
-  public getProductsByCategory(category: string): Product[] {
-    return this.products.filter(p => p.category === category);
-  }
-  
-  public getProductsByModel(model: string): Product[] {
-    return this.products.filter(p => 
-      p.specifications && p.specifications.model === model
-    );
-  }
-  
-  // Get unique values from dataset
-  public getUniqueValuesFromDataset(field: string): string[] {
-    if (!this.dataset || this.dataset.length === 0) {
-      return [];
-    }
-    
-    const values = new Set<string>();
-    
-    this.dataset.forEach(item => {
-      const value = (item as any)[field];
-      if (value) {
-        values.add(value.toString());
-      }
-    });
-    
-    return Array.from(values);
-  }
-  
-  // Price prediction using KNN algorithm
-  public predictPrice(model: string, basePrice: number, profitMargin: number): number {
-    if (!this.dataset || this.dataset.length === 0) {
-      return basePrice; // Default to base price if no dataset
-    }
-    
-    // Filter dataset to find entries with matching model
-    const matchingEntries = this.dataset.filter(item => item.Model === model);
-    
-    if (matchingEntries.length === 0) {
-      return basePrice; // Default to base price if no matches
-    }
-    
-    // Normalize competitor prices
-    const normalizedEntries = this.normalizeCompetitorPrices(matchingEntries);
-    
-    // Extract features for KNN
-    const features = this.extractFeatures(normalizedEntries[0]);
-    
-    // Find K nearest neighbors (use K=3 or dataset length if smaller)
-    const k = Math.min(3, normalizedEntries.length);
-    const neighbors = this.findKNearestNeighbors(normalizedEntries, features, k);
-    
-    // Calculate predicted price based on neighbors
-    let predictedPrice = 0;
-    let totalWeight = 0;
-    
-    neighbors.forEach(neighbor => {
-      const price = typeof neighbor.entry.Price === 'string' ? 
-        parseFloat(neighbor.entry.Price) : neighbor.entry.Price;
-      
-      const weight = 1 / (neighbor.distance + 0.1); // Add 0.1 to avoid division by zero
-      predictedPrice += price * weight;
-      totalWeight += weight;
-    });
-    
-    predictedPrice = predictedPrice / totalWeight;
-    
-    // Adjust based on profit margin
-    const costFactor = 1 - (profitMargin / 100);
-    const adjustedPrice = predictedPrice / costFactor;
-    
-    return Math.round(adjustedPrice * 100) / 100;
-  }
-  
-  // Normalize competitor prices in dataset
-  private normalizeCompetitorPrices(entries: SmartphoneInputData[]): SmartphoneInputData[] {
-    // Group entries by competitor price
-    const priceGroups: Record<number, SmartphoneInputData[]> = {};
-    
-    entries.forEach(entry => {
-      if (entry["Competitor Price"]) {
-        const price = entry["Competitor Price"];
-        if (!priceGroups[price]) {
-          priceGroups[price] = [];
-        }
-        priceGroups[price].push(entry);
-      }
-    });
-    
-    // For each group with identical prices, keep only one entry
-    const normalizedEntries: SmartphoneInputData[] = [];
-    
-    Object.values(priceGroups).forEach(group => {
-      normalizedEntries.push(group[0]);
-    });
-    
-    // Add entries without competitor prices
-    entries.forEach(entry => {
-      if (!entry["Competitor Price"]) {
-        normalizedEntries.push(entry);
-      }
-    });
-    
-    return normalizedEntries;
-  }
-  
-  // Extract features from dataset entry
-  private extractFeatures(entry: SmartphoneInputData): Record<string, number> {
-    const features: Record<string, number> = {};
-    
-    // Extract numerical features
-    if (entry.Specifications) {
-      features.storage = this.extractStorageGB(entry.Specifications.Storage);
-      features.ram = this.extractRAMGB(entry.Specifications.RAM);
-      features.display = entry.Specifications["Display Hz"] || 60;
-      features.camera = entry.Specifications["Camera MP"] || 12;
-      features.battery = this.extractBatteryCapacity(entry.Specifications["Battery Capacity"]);
-    }
-    
-    // Other numerical features
-    features.stock = entry.Stock || 10;
-    features.seasonalEffect = entry["Seasonal Effect"] || 5;
-    features.demandLevel = entry["Demand Level"] || 5;
-    
-    return features;
-  }
-  
-  // Helper to extract storage in GB
-  private extractStorageGB(storage: string): number {
-    if (!storage) return 64; // Default value
-    
-    const match = storage.match(/(\d+)\s*GB/i);
-    if (match && match[1]) {
-      return parseInt(match[1]);
-    }
-    
-    const tbMatch = storage.match(/(\d+)\s*TB/i);
-    if (tbMatch && tbMatch[1]) {
-      return parseInt(tbMatch[1]) * 1024; // Convert TB to GB
-    }
-    
-    return 64; // Default value
-  }
-  
-  // Helper to extract RAM in GB
-  private extractRAMGB(ram: string): number {
-    if (!ram) return 4; // Default value
-    
-    const match = ram.match(/(\d+)\s*GB/i);
-    if (match && match[1]) {
-      return parseInt(match[1]);
-    }
-    
-    return 4; // Default value
-  }
-  
-  // Helper to extract battery capacity in mAh
-  private extractBatteryCapacity(battery: string): number {
-    if (!battery) return 3000; // Default value
-    
-    const match = battery.match(/(\d+)\s*mAh/i);
-    if (match && match[1]) {
-      return parseInt(match[1]);
-    }
-    
-    return 3000; // Default value
-  }
-  
-  // Find K nearest neighbors using Euclidean distance
-  private findKNearestNeighbors(
-    entries: SmartphoneInputData[], 
-    targetFeatures: Record<string, number>, 
-    k: number
-  ): { entry: SmartphoneInputData; distance: number }[] {
-    // Calculate distance for each entry
-    const entriesWithDistance = entries.map(entry => {
-      const features = this.extractFeatures(entry);
-      const distance = this.calculateEuclideanDistance(features, targetFeatures);
-      return { entry, distance };
-    });
-    
-    // Sort by distance (ascending) and take top K
-    return entriesWithDistance
-      .sort((a, b) => a.distance - b.distance)
-      .slice(0, k);
-  }
-  
-  // Calculate Euclidean distance between feature sets
-  private calculateEuclideanDistance(
-    features1: Record<string, number>, 
-    features2: Record<string, number>
-  ): number {
-    let sum = 0;
-    
-    // Normalize and weight features
-    const weights = {
-      storage: 0.2,
-      ram: 0.2,
-      display: 0.15,
-      camera: 0.15,
-      battery: 0.1,
-      stock: 0.05,
-      seasonalEffect: 0.1,
-      demandLevel: 0.1
-    };
-    
-    // For each feature in features1
-    Object.keys(features1).forEach(key => {
-      if (features2[key] !== undefined) {
-        const weight = (weights as any)[key] || 1;
-        const diff = features1[key] - features2[key];
-        sum += weight * diff * diff;
-      }
-    });
-    
-    return Math.sqrt(sum);
-  }
-  
-  // Sales methods
-  public getAllSales(): ProductSale[] {
-    return [...this.sales];
-  }
-  
+
   public getProductSales(productId: string): ProductSale[] {
-    return this.sales.filter(s => s.productId === productId);
+    return this.productSales.filter(sale => sale.productId === productId);
   }
-  
-  public getSalesTrends(productId?: string, startDate?: string, endDate?: string): SalesTrend[] {
-    // Filter sales by product if provided
-    let filteredSales = productId 
-      ? this.sales.filter(s => s.productId === productId)
-      : this.sales;
-    
-    // Filter by date range if provided
-    if (startDate) {
-      filteredSales = filteredSales.filter(s => new Date(s.date) >= new Date(startDate));
-    }
-    if (endDate) {
-      filteredSales = filteredSales.filter(s => new Date(s.date) <= new Date(endDate));
-    }
-    
-    // Group by date
-    const salesByDate = filteredSales.reduce((acc, sale) => {
-      if (!acc[sale.date]) {
-        acc[sale.date] = {
-          totalSales: 0,
-          totalRevenue: 0
-        };
-      }
-      acc[sale.date].totalSales += sale.quantity;
-      acc[sale.date].totalRevenue += sale.quantity * sale.price;
-      return acc;
-    }, {} as Record<string, { totalSales: number; totalRevenue: number }>);
-    
-    // Convert to array and sort by date
-    return Object.entries(salesByDate)
-      .map(([date, data]) => ({
-        date,
-        sales: data.totalSales,
-        revenue: Math.round(data.totalRevenue * 100) / 100
-      }))
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }
-  
-  // Category methods
-  public getAllCategories(): Category[] {
-    return [...this.categories];
-  }
-  
-  public getCategoryById(id: string): Category | undefined {
-    return this.categories.find(c => c.id === id);
-  }
-  
-  // Competitor price methods
+
   public getCompetitorPrices(productId: string): CompetitorPrice[] {
-    return this.competitorPrices.filter(cp => cp.productId === productId);
+    return this.competitorPrices.filter(price => price.productId === productId);
   }
-  
-  public getAverageCompetitorPrice(productId: string): number {
-    const prices = this.competitorPrices.filter(cp => cp.productId === productId);
-    if (prices.length === 0) return 0;
-    
-    const sum = prices.reduce((total, cp) => total + cp.price, 0);
-    return Math.round((sum / prices.length) * 100) / 100;
+
+  public getSalesTrend(productId: string): { date: string; sales: number; revenue: number; }[] {
+    const sales = this.getProductSales(productId);
+    return sales.map(sale => ({
+      date: sale.date,
+      sales: sale.quantity,
+      revenue: sale.quantity * sale.price
+    }));
   }
-  
-  // Prediction methods
+
   public predictOptimalPrice(productId: string): PricePrediction | null {
     const product = this.getProductById(productId);
     if (!product) return null;
-    
-    // Get sales for this product
-    const productSales = this.getProductSales(productId);
-    if (productSales.length === 0) return null;
-    
-    // Calculate demand coefficient based on sales volume
-    const totalSold = productSales.reduce((sum, sale) => sum + sale.quantity, 0);
-    const demandCoefficient = Math.min(Math.max(totalSold / 100, 0.1), 1); // Normalized between 0.1 and 1
-    
-    // Calculate competitor influence
-    const avgCompetitorPrice = this.getAverageCompetitorPrice(productId);
-    const competitorInfluence = avgCompetitorPrice > 0 
-      ? Math.min(Math.max((avgCompetitorPrice / product.basePrice) - 0.9, -0.2), 0.2)
-      : 0;
-    
-    // Use product's seasonality factor
+
+    // Mock prediction logic
+    const demandCoefficient = 0.8;
+    const competitorInfluence = 0.1;
     const seasonalityFactor = product.seasonality;
-    
-    // Calculate margin optimization factor
-    const margin = (product.basePrice - product.cost) / product.basePrice;
-    const marginOptimization = Math.min(Math.max(margin - 0.3, -0.15), 0.15);
-    
-    // Calculate optimal price using the formula: P_opt = P_base + f(D,C,T,M)
-    // Here, f() is implemented as a weighted sum
-    const pricingFunction = (d: number, c: number, t: number, m: number): number => {
-      return product.basePrice * (1 + 0.2*d + 0.3*c + 0.25*t + 0.25*m);
-    };
-    
-    const optimalPrice = pricingFunction(
-      demandCoefficient, 
-      competitorInfluence, 
-      seasonalityFactor, 
-      marginOptimization
-    );
-    
-    const factors: PriceFactors = {
-      demandCoefficient,
-      competitorInfluence,
-      seasonalityFactor,
-      marginOptimization
-    };
-    
-    // Calculate confidence level based on amount of data
-    const confidence = Math.min(productSales.length / 50, 1) * 100;
-    
+    const marginOptimization = 0.15;
+
+    const optimalPrice = product.basePrice * (1 + marginOptimization) * (1 + seasonalityFactor) - (competitorInfluence * 5);
+    const confidence = 75 + (product.seasonality * 10);
+
     return {
-      productId,
+      productId: product.id,
       basePrice: product.basePrice,
-      optimalPrice: Math.round(optimalPrice * 100) / 100,
-      confidence: Math.round(confidence),
-      factors
+      optimalPrice: Math.max(optimalPrice, product.cost * 1.2),
+      confidence: Math.min(confidence, 95),
+      factors: {
+        demandCoefficient,
+        competitorInfluence,
+        seasonalityFactor,
+        marginOptimization
+      }
     };
   }
-  
-  // Simulation methods
-  public simulateDiscount(params: SimulationParams): SimulationResult {
+
+  // Add or modify this method to accept a custom original price parameter
+  public simulateDiscount(params: SimulationParams, originalPrice?: number): SimulationResult {
+    // Get product by ID
     const product = this.getProductById(params.productId);
-    if (!product) {
-      throw new Error("Product not found");
-    }
     
-    // Get sales history for elasticity calculation
-    const productSales = this.getProductSales(params.productId);
-    
-    // Calculate price elasticity (simplified)
-    // Average price and quantity from historical data
-    let avgPrice = 0;
-    let avgQuantity = 0;
-    
-    if (productSales.length > 0) {
-      avgPrice = productSales.reduce((sum, sale) => sum + sale.price, 0) / productSales.length;
-      avgQuantity = productSales.reduce((sum, sale) => sum + sale.quantity, 0) / productSales.length;
-    } else {
-      avgPrice = product.basePrice;
-      avgQuantity = 5; // Default assumption
-    }
+    // Use provided originalPrice if available, otherwise use product's basePrice
+    const productPrice = originalPrice || (product?.basePrice || 0);
     
     // Calculate discounted price
-    const discountedPrice = product.basePrice * (1 - params.discountRate);
+    const discountedPrice = productPrice * (1 - params.discountRate);
     
-    // Estimate demand increase based on discount and elasticity
-    const priceChangePercent = (avgPrice - discountedPrice) / avgPrice;
-    const elasticity = -1.5; // Assumed elasticity, negative because price and demand are inversely related
-    const quantityChangePercent = priceChangePercent * elasticity;
+    // Calculate profit based on price elasticity model
+    const elasticity = -1.5; // Price elasticity of demand (-1.5 means 1% price decrease -> 1.5% demand increase)
+    const priceChangePercent = -params.discountRate;
+    const quantityChangePercent = -priceChangePercent * elasticity * params.expectedDemandIncrease;
     
-    // Expected sales with the applied discount
-    const expectedSales = avgQuantity * (1 + quantityChangePercent) * 
-      (params.expectedDemandIncrease > 0 ? params.expectedDemandIncrease : 1);
+    // Assume baseline quantity of 100 units per month
+    const baselineQuantity = 100;
+    const expectedQuantity = baselineQuantity * (1 + quantityChangePercent);
     
-    // Calculate expected revenue and profit
-    const expectedRevenue = expectedSales * discountedPrice;
-    const expectedProfit = expectedSales * (discountedPrice - product.cost);
+    // Calculate revenue and profit
+    const expectedRevenue = expectedQuantity * discountedPrice;
+    const expectedProfit = expectedQuantity * (discountedPrice - (product?.cost || 0));
     
     return {
       productId: params.productId,
-      originalPrice: product.basePrice,
-      discountedPrice: Math.round(discountedPrice * 100) / 100,
-      expectedSales: Math.round(expectedSales * 100) / 100,
-      expectedRevenue: Math.round(expectedRevenue * 100) / 100,
-      expectedProfit: Math.round(expectedProfit * 100) / 100
+      originalPrice: productPrice,
+      discountedPrice,
+      expectedSales: expectedQuantity,
+      expectedRevenue,
+      expectedProfit
     };
   }
-  
-  // Top sellers by revenue
-  public getTopSellingProducts(limit: number = 5): { product: Product; revenue: number; units: number }[] {
-    // Group sales by product
-    const productTotals = this.sales.reduce((acc, sale) => {
-      if (!acc[sale.productId]) {
-        acc[sale.productId] = { revenue: 0, units: 0 };
-      }
-      acc[sale.productId].revenue += sale.price * sale.quantity;
-      acc[sale.productId].units += sale.quantity;
-      return acc;
-    }, {} as Record<string, { revenue: number; units: number }>);
-    
-    // Convert to array of products with revenue
-    const productsWithRevenue = Object.entries(productTotals).map(([productId, data]) => {
-      const product = this.getProductById(productId);
-      if (!product) {
-        return null;
-      }
-      return {
-        product,
-        revenue: Math.round(data.revenue * 100) / 100,
-        units: data.units
-      };
-    }).filter(item => item !== null) as { product: Product; revenue: number; units: number }[];
-    
-    // Sort by revenue and return top N
-    return productsWithRevenue
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, limit);
+
+  getDataset(): SmartphoneInputData[] {
+    return this.dataset;
+  }
+
+  predictPrice(modelName: string, basePrice: number, profitMargin: number): number {
+    // Find the closest neighbors based on specifications
+    const modelData = this.dataset.filter(item => item.Model === modelName);
+    if (modelData.length === 0) {
+      throw new Error(`No data found for model ${modelName}`);
+    }
+
+    // Calculate the predicted price based on the average price of the neighbors
+    const predictedPrice = basePrice * (1 + profitMargin / 100);
+    return predictedPrice;
   }
 }
 

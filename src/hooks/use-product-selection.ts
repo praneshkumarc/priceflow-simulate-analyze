@@ -131,6 +131,10 @@ export function useProductSelection() {
             priceMap[p.id] !== undefined && priceMap[p.id] > 0
           );
           setProductsWithPredictions(withPredictions);
+          
+          // Log for debugging
+          console.log('Products with predictions:', withPredictions);
+          console.log('Price map:', priceMap);
         }
       } else {
         setProductsWithPredictions([]);

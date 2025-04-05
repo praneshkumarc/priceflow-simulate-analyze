@@ -29,7 +29,7 @@ import { useProductSelection } from '@/hooks/use-product-selection';
 import { useAuth } from '@/contexts/AuthContext';
 
 const DiscountSimulationTab: React.FC = () => {
-  const { productsWithPredictions, predictedPrices } = useProductSelection();
+  const { productsWithPredictions, predictedPrices, refreshProducts } = useProductSelection();
   const [selectedProductId, setSelectedProductId] = useState<string>('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [simulations, setSimulations] = useState<SimulationResult[]>([]);
@@ -46,6 +46,11 @@ const DiscountSimulationTab: React.FC = () => {
   const { user } = useAuth();
   
   useEffect(() => {
+    // Make sure we have the latest predictions
+    if (user) {
+      refreshProducts();
+    }
+    
     // Extract unique models from the dataset
     const dataset = dataService.getDataset();
     if (dataset && dataset.length > 0) {
@@ -53,13 +58,19 @@ const DiscountSimulationTab: React.FC = () => {
       setModels(uniqueModels);
     }
     
+    setLoading(false);
+  }, [user]);
+  
+  // When productsWithPredictions changes, update the selected product
+  useEffect(() => {
+    console.log('Products with predictions updated:', productsWithPredictions);
+    console.log('Predicted prices:', predictedPrices);
+    
     // If there are products with predictions, select the first one by default
-    if (productsWithPredictions.length > 0) {
+    if (productsWithPredictions.length > 0 && !selectedProductId) {
       setSelectedProductId(productsWithPredictions[0].id);
     }
-    
-    setLoading(false);
-  }, [productsWithPredictions]);
+  }, [productsWithPredictions, predictedPrices]);
   
   useEffect(() => {
     if (!selectedProductId) return;
@@ -92,6 +103,9 @@ const DiscountSimulationTab: React.FC = () => {
     const futureDate = new Date();
     futureDate.setDate(today.getDate() + 30); // 30 days simulation
     
+    // Use predictedPrice if available, otherwise use basePrice
+    const originalPrice = predictedPrices[selectedProductId] || selectedProduct.basePrice;
+    
     const params: SimulationParams = {
       productId: selectedProductId,
       discountRate,
@@ -101,7 +115,7 @@ const DiscountSimulationTab: React.FC = () => {
     };
     
     try {
-      const result = dataService.simulateDiscount(params);
+      const result = dataService.simulateDiscount(params, originalPrice);
       setSimulations(prev => [...prev, result]);
     } catch (error) {
       console.error("Simulation error:", error);
@@ -116,8 +130,8 @@ const DiscountSimulationTab: React.FC = () => {
   const generateComparisonData = () => {
     if (!selectedProduct || simulations.length === 0) return [];
     
-    // Original (no discount) scenario
-    const originalPrice = selectedProduct.basePrice;
+    // Use predictedPrice if available, otherwise use basePrice
+    const originalPrice = predictedPrices[selectedProductId] || selectedProduct.basePrice;
     const originalProfit = (originalPrice - selectedProduct.cost) * 100; // Assume 100 units
     
     const comparisonData = simulations.map((sim, index) => {
@@ -148,11 +162,14 @@ const DiscountSimulationTab: React.FC = () => {
   const generateEffectCurve = () => {
     if (!selectedProduct) return [];
     
+    // Use predictedPrice if available, otherwise use basePrice
+    const basePrice = predictedPrices[selectedProductId] || selectedProduct.basePrice;
+    
     const discounts = [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4];
     const data = [];
     
     for (const disc of discounts) {
-      const discountedPrice = selectedProduct.basePrice * (1 - disc);
+      const discountedPrice = basePrice * (1 - disc);
       const priceChangePercent = disc;
       const elasticity = -1.5;
       const quantityChangePercent = priceChangePercent * elasticity;
