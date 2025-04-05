@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
@@ -26,6 +27,7 @@ import { ArrowRight, BarChart as BarChartIcon, LineChart as LineChartIcon, Refre
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useProductSelection } from '@/hooks/use-product-selection';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from "@/hooks/use-toast";
 
 const DiscountSimulationTab: React.FC = () => {
   const { productsWithPredictions, predictedPrices, refreshProducts } = useProductSelection();
@@ -35,6 +37,7 @@ const DiscountSimulationTab: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [models, setModels] = useState<string[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>('');
+  const { toast } = useToast();
   
   // Simulation params
   const [discountRate, setDiscountRate] = useState<number>(0.1); // 10% default
@@ -55,6 +58,17 @@ const DiscountSimulationTab: React.FC = () => {
     if (dataset && dataset.length > 0) {
       const uniqueModels = [...new Set(dataset.map(item => item.Model))];
       setModels(uniqueModels);
+      
+      // If there's at least one model and no model is selected yet, select the first one
+      if (uniqueModels.length > 0 && !selectedModel) {
+        setSelectedModel(uniqueModels[0]);
+        
+        // Check if there's a prediction for this model
+        const modelId = `model-${uniqueModels[0]}`;
+        if (predictionService.hasPrediction(modelId)) {
+          setSelectedProductId(modelId);
+        }
+      }
     }
     
     // Get model-based predictions directly from predictionService
@@ -94,6 +108,15 @@ const DiscountSimulationTab: React.FC = () => {
       setSelectedProduct(modelPredictions[0]);
       setSelectedModel(modelPredictions[0].specifications?.model || '');
     }
+    
+    // Check if there are any predictions available
+    if (predictedProductIds.length === 0 && modelPredictions.length === 0) {
+      toast({
+        title: "No predictions available",
+        description: "Please generate price predictions in the Price Prediction tab first.",
+        variant: "destructive",
+      });
+    }
   }, [productsWithPredictions]);
   
   useEffect(() => {
@@ -120,6 +143,32 @@ const DiscountSimulationTab: React.FC = () => {
     }
   }, [selectedModel]);
   
+  useEffect(() => {
+    if (selectedProductId) {
+      // If it's a model-based prediction
+      if (selectedProductId.startsWith('model-')) {
+        const modelName = selectedProductId.replace('model-', '');
+        const modelProduct = {
+          id: selectedProductId,
+          name: modelName,
+          basePrice: 0,
+          category: 'Smartphone',
+          inventory: 0,
+          cost: 0,
+          seasonality: 0,
+          specifications: { model: modelName }
+        };
+        setSelectedProduct(modelProduct);
+      } else {
+        // Find the product in the user's products
+        const product = productsWithPredictions.find(p => p.id === selectedProductId);
+        if (product) {
+          setSelectedProduct(product);
+        }
+      }
+    }
+  }, [selectedProductId, productsWithPredictions]);
+  
   const runSimulation = () => {
     if (!selectedProductId || !selectedProduct) return;
     
@@ -144,13 +193,33 @@ const DiscountSimulationTab: React.FC = () => {
     try {
       const result = dataService.simulateDiscount(params, originalPrice);
       setSimulations(prev => [...prev, result]);
+      
+      // If this is the first simulation, automatically enable compare mode
+      if (simulations.length === 0) {
+        setCompareMode(true);
+      }
+      
+      toast({
+        title: "Simulation Complete",
+        description: `Simulated a ${formatPercentage(discountRate)} discount on ${selectedProduct.name}`,
+      });
     } catch (error) {
       console.error("Simulation error:", error);
+      toast({
+        title: "Simulation Error",
+        description: error instanceof Error ? error.message : "Error running simulation",
+        variant: "destructive",
+      });
     }
   };
   
   const resetSimulations = () => {
     setSimulations([]);
+    setCompareMode(false);
+    toast({
+      title: "Simulations Reset",
+      description: "All simulation scenarios have been cleared",
+    });
   };
   
   const generateComparisonData = () => {
@@ -184,45 +253,20 @@ const DiscountSimulationTab: React.FC = () => {
   
   const comparisonData = generateComparisonData();
   
-  const generateEffectCurve = () => {
-    if (!selectedProduct) return [];
-    
-    // Use predictedPrice if available, otherwise use basePrice
-    const basePrice = predictedPrices[selectedProductId] || selectedProduct.basePrice;
-    
-    const discounts = [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4];
-    const data = [];
-    
-    for (const disc of discounts) {
-      const discountedPrice = basePrice * (1 - disc);
-      const priceChangePercent = disc;
-      const elasticity = -1.5;
-      const quantityChangePercent = priceChangePercent * elasticity;
-      
-      // Start with 100 units as baseline
-      const baselineQuantity = 100;
-      const expectedQuantity = baselineQuantity * (1 + quantityChangePercent);
-      const expectedRevenue = expectedQuantity * discountedPrice;
-      const expectedProfit = expectedQuantity * (discountedPrice - selectedProduct.cost);
-      
-      data.push({
-        discount: disc,
-        price: discountedPrice,
-        quantity: expectedQuantity,
-        revenue: expectedRevenue,
-        profit: expectedProfit
-      });
-    }
-    
-    return data;
-  };
-  
-  const effectCurveData = generateEffectCurve();
-  
   const latestSimulation = simulations.length > 0 ? simulations[simulations.length - 1] : null;
   
   const getProductOptionsWithPredictions = () => {
-    return productsWithPredictions.map(product => {
+    const modelPredictions = Object.keys(predictionService.getAllPredictedPrices())
+      .filter(id => id.startsWith('model-'))
+      .map(id => ({
+        id: id,
+        name: id.replace('model-', ''),
+        basePrice: 0,
+        predictedPrice: predictionService.getPredictedPrice(id),
+        model: id.replace('model-', '')
+      }));
+      
+    const productPredictions = productsWithPredictions.map(product => {
       const predictedPrice = predictedPrices[product.id] || product.basePrice;
       
       return {
@@ -233,6 +277,8 @@ const DiscountSimulationTab: React.FC = () => {
         model: product.specifications?.model || ''
       };
     });
+    
+    return [...modelPredictions, ...productPredictions];
   };
   
   const productOptions = getProductOptionsWithPredictions();
@@ -259,7 +305,7 @@ const DiscountSimulationTab: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {productsWithPredictions.length === 0 && predictionService.getPredictedProductIds().length === 0 ? (
+              {predictionService.getPredictedProductIds().length === 0 ? (
                 <div className="text-center p-4 border border-dashed rounded-md">
                   <p className="text-muted-foreground">
                     {user ? "No products with predictions found. Generate price predictions in the Price Prediction tab first." 
@@ -288,14 +334,21 @@ const DiscountSimulationTab: React.FC = () => {
                     
                     <div className="space-y-2">
                       <Label>Select Product</Label>
-                      <ProductSelect
-                        products={productsWithPredictions}
-                        onProductSelect={setSelectedProductId}
-                        selectedProductId={selectedProductId}
-                        placeholder="Select a product with prediction"
-                        showPrices={false}
-                        predictedPrices={predictedPrices}
-                      />
+                      <Select
+                        value={selectedProductId}
+                        onValueChange={setSelectedProductId}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a product with prediction" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {productOptions.map(product => (
+                            <SelectItem key={product.id} value={product.id}>
+                              {product.name} {product.predictedPrice ? `($${product.predictedPrice.toFixed(2)})` : ''}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                   
@@ -332,7 +385,7 @@ const DiscountSimulationTab: React.FC = () => {
                   <div className="flex justify-between items-center">
                     <Button
                       variant="outline"
-                      onClick={() => setSimulations([])}
+                      onClick={resetSimulations}
                       disabled={simulations.length === 0}
                     >
                       <RefreshCw className="mr-2 h-4 w-4" /> Reset
@@ -451,39 +504,6 @@ const DiscountSimulationTab: React.FC = () => {
           </CardContent>
         </Card>
       )}
-      
-      <Card>
-        <CardHeader>
-          <CardTitle>Price Elasticity Effect</CardTitle>
-          <CardDescription>How discounts affect revenue and profit</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="h-[350px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={effectCurveData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis 
-                  dataKey="discount" 
-                  tickFormatter={(value) => formatPercentage(value)}
-                />
-                <YAxis />
-                <Tooltip 
-                  formatter={(value, name) => [formatCurrency(Number(value)), name]}
-                  labelFormatter={(value) => `Discount: ${formatPercentage(Number(value))}`}
-                />
-                <Legend />
-                <Line type="monotone" dataKey="revenue" name="Revenue" stroke="#3aa4ff" activeDot={{ r: 8 }} />
-                <Line type="monotone" dataKey="profit" name="Profit" stroke="#4ac0c0" activeDot={{ r: 8 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-          
-          <div className="mt-4 text-sm text-muted-foreground">
-            <p>This chart shows how different discount rates affect projected revenue and profit based on price elasticity modeling. 
-            The optimal discount rate typically balances increased sales volume with decreased unit margins.</p>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 };

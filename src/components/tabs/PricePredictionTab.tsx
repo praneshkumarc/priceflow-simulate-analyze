@@ -97,13 +97,16 @@ const PricePredictionTab: React.FC = () => {
       if (pricePred) {
         setPrediction(pricePred);
         setAdjustedPrice(pricePred.optimalPrice);
+        // Save the prediction to the prediction service
+        predictionService.savePrediction(pricePred);
+        toast({
+          title: "Optimal Price Prediction",
+          description: `Generated optimal price: ${formatCurrency(pricePred.optimalPrice)}`,
+        });
         setBasePrice(pricePred.basePrice);
         
-        // Save the prediction to the database
-        savePrediction(selectedProductId, pricePred).then(() => {
-          // Refresh products with predictions after saving
-          refreshProducts();
-        });
+        // Refresh products with predictions after saving
+        refreshProducts();
       }
       
       // Get competitor prices
@@ -297,12 +300,39 @@ const PricePredictionTab: React.FC = () => {
                   </p>
                 </div>
               ) : (
-                <ProductSelect
-                  products={userAddedProducts}
-                  onProductSelect={setSelectedProductId}
-                  selectedProductId={selectedProductId}
-                  placeholder="Select a product for price prediction"
-                />
+                <>
+                  <ProductSelect
+                    products={userAddedProducts}
+                    onProductSelect={setSelectedProductId}
+                    selectedProductId={selectedProductId}
+                    placeholder="Select a product for price prediction"
+                  />
+                  
+                  <Button 
+                    className="w-full mt-2" 
+                    variant="outline"
+                    onClick={() => {
+                      if (selectedProductId) {
+                        // Get price prediction for this product
+                        const pricePred = dataService.predictOptimalPrice(selectedProductId);
+                        if (pricePred) {
+                          setPrediction(pricePred);
+                          setAdjustedPrice(pricePred.optimalPrice);
+                          // Save the prediction to the prediction service
+                          predictionService.savePrediction(pricePred);
+                          toast({
+                            title: "Optimal Price Prediction",
+                            description: `Generated optimal price: ${formatCurrency(pricePred.optimalPrice)}`,
+                          });
+                        }
+                      }
+                    }}
+                    disabled={!selectedProductId}
+                  >
+                    <Cpu className="mr-2 h-4 w-4" />
+                    Generate Optimal Price
+                  </Button>
+                </>
               )}
               
               {selectedProduct && prediction && (
