@@ -28,7 +28,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from "@/hooks/use-toast";
 import { Loader2, Search, Cpu, LineChart as LineChartIcon } from 'lucide-react';
 import { useProductSelection } from '@/hooks/use-product-selection';
 import { useAuth } from '@/contexts/AuthContext';
@@ -51,17 +51,22 @@ const PricePredictionTab: React.FC = () => {
   const { user } = useAuth();
   
   useEffect(() => {
+    // Extract unique models from the dataset
     const dataset = dataService.getDataset();
     if (dataset && dataset.length > 0) {
       const uniqueModels = [...new Set(dataset.map(item => item.Model))];
       setModels(uniqueModels);
       
+      // Set first model as default if available
       if (uniqueModels.length > 0 && !selectedModel) {
         setSelectedModel(uniqueModels[0]);
         
+        // Get average price for this model from the dataset
         const modelItems = dataset.filter(item => item.Model === uniqueModels[0]);
         if (modelItems.length > 0) {
+          // FIX: Convert any string prices to numbers before adding
           const avgPrice = modelItems.reduce((sum, item) => {
+            // Ensure Price is treated as a number
             const itemPrice = typeof item.Price === 'string' ? parseFloat(item.Price) : item.Price;
             return sum + (itemPrice || 0);
           }, 0) / modelItems.length;
@@ -71,6 +76,7 @@ const PricePredictionTab: React.FC = () => {
       }
     }
     
+    // If there are user products, select the first one by default
     if (userAddedProducts.length > 0) {
       setSelectedProductId(userAddedProducts[0].id);
     }
@@ -81,23 +87,29 @@ const PricePredictionTab: React.FC = () => {
   useEffect(() => {
     if (!selectedProductId) return;
     
+    // Get the selected product from user's products
     const product = userAddedProducts.find(p => p.id === selectedProductId);
     if (product) {
       setSelectedProduct(product);
       
+      // Get price prediction for this product
       const pricePred = dataService.predictOptimalPrice(selectedProductId);
       if (pricePred) {
         setPrediction(pricePred);
         setAdjustedPrice(pricePred.optimalPrice);
+        // Save the prediction to the prediction service
         predictionService.savePrediction(pricePred);
         toast({
           title: "Optimal Price Prediction",
           description: `Generated optimal price: ${formatCurrency(pricePred.optimalPrice)}`,
         });
         setBasePrice(pricePred.basePrice);
+        
+        // Refresh products with predictions after saving
         refreshProducts();
       }
       
+      // Get competitor prices
       const compPrices = dataService.getCompetitorPrices(selectedProductId);
       const compData = compPrices.reduce((acc, comp) => {
         if (!acc[comp.competitorName]) {
@@ -107,6 +119,7 @@ const PricePredictionTab: React.FC = () => {
         return acc;
       }, {} as Record<string, any[]>);
       
+      // Get average price per competitor
       const avgCompPrices = Object.entries(compData).map(([name, prices]) => {
         const avgPrice = prices.reduce((sum, p) => sum + p.price, 0) / prices.length;
         return {
@@ -116,6 +129,7 @@ const PricePredictionTab: React.FC = () => {
       });
       
       if (product) {
+        // Add our base price and optimal price for comparison
         avgCompPrices.push({
           name: "Our Base Price",
           price: product.basePrice
@@ -135,10 +149,13 @@ const PricePredictionTab: React.FC = () => {
   
   useEffect(() => {
     if (selectedModel && !basePrice) {
+      // Get average price for selected model from the dataset
       const dataset = dataService.getDataset();
       const modelItems = dataset.filter(item => item.Model === selectedModel);
       if (modelItems.length > 0) {
+        // FIX: Convert any string prices to numbers before adding
         const avgPrice = modelItems.reduce((sum, item) => {
+          // Ensure Price is treated as a number
           const itemPrice = typeof item.Price === 'string' ? parseFloat(item.Price) : item.Price;
           return sum + (itemPrice || 0);
         }, 0) / modelItems.length;
@@ -147,40 +164,6 @@ const PricePredictionTab: React.FC = () => {
       }
     }
   }, [selectedModel, basePrice]);
-  
-  const generateOptimalPrice = (productId: string) => {
-    if (!productId) {
-      toast({
-        title: "No Product Selected",
-        description: "Please select a product first",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    setLoading(true);
-    
-    const pricePred = dataService.predictOptimalPrice(productId);
-    if (pricePred) {
-      setPrediction(pricePred);
-      setAdjustedPrice(pricePred.optimalPrice);
-      predictionService.savePrediction(pricePred);
-      toast({
-        title: "Optimal Price Prediction",
-        description: `Generated optimal price: ${formatCurrency(pricePred.optimalPrice)}`,
-      });
-      setBasePrice(pricePred.basePrice);
-      refreshProducts();
-    } else {
-      toast({
-        title: "Prediction Failed",
-        description: "Unable to generate optimal price for this product",
-        variant: "destructive"
-      });
-    }
-    
-    setLoading(false);
-  };
   
   const radarData = prediction ? [
     { subject: 'Demand', A: prediction.factors.demandCoefficient * 100, fullMark: 100 },
@@ -199,8 +182,9 @@ const PricePredictionTab: React.FC = () => {
     const cost = selectedProduct.cost;
     const unitProfit = price - cost;
     
+    // Simplified demand model - lower as price increases
     const priceFactor = prediction ? price / prediction.optimalPrice : 1;
-    const estimatedSales = 100 * Math.pow(0.9, priceFactor - 1);
+    const estimatedSales = 100 * Math.pow(0.9, priceFactor - 1);  // Demand decreases as price increases
     
     return unitProfit * estimatedSales;
   };
@@ -212,6 +196,7 @@ const PricePredictionTab: React.FC = () => {
     const basePrice = selectedProduct.basePrice;
     const optimalPrice = prediction.optimalPrice;
     
+    // Generate price points from 80% to 120% of base price
     const minPrice = Math.max(baseCost * 1.1, basePrice * 0.8);
     const maxPrice = basePrice * 1.3;
     const step = (maxPrice - minPrice) / 20;
@@ -239,13 +224,17 @@ const PricePredictionTab: React.FC = () => {
       return;
     }
     
+    // Show loading indicator
     setProcessingFeatures(true);
     
+    // Simulate extraction process (in real app, this would be more complex)
     setTimeout(() => {
       try {
+        // Get predicted price using KNN algorithm
         const predictedPrice = dataService.predictPrice(selectedModel, basePrice, profitMargin);
         setKnnPredictedPrice(predictedPrice);
         
+        // Create and save the prediction
         const productId = `model-${selectedModel}`;
         const prediction = {
           productId,
@@ -277,7 +266,7 @@ const PricePredictionTab: React.FC = () => {
       } finally {
         setProcessingFeatures(false);
       }
-    }, 2000);
+    }, 2000); // Simulate processing time
   };
   
   return (
@@ -295,6 +284,7 @@ const PricePredictionTab: React.FC = () => {
       )}
       
       <div className="grid gap-6 md:grid-cols-2">
+        {/* Standard Product Selection */}
         <Card>
           <CardHeader>
             <CardTitle>Standard Price Prediction</CardTitle>
@@ -321,20 +311,26 @@ const PricePredictionTab: React.FC = () => {
                   <Button 
                     className="w-full mt-2" 
                     variant="outline"
-                    onClick={() => generateOptimalPrice(selectedProductId)}
-                    disabled={!selectedProductId || loading}
+                    onClick={() => {
+                      if (selectedProductId) {
+                        // Get price prediction for this product
+                        const pricePred = dataService.predictOptimalPrice(selectedProductId);
+                        if (pricePred) {
+                          setPrediction(pricePred);
+                          setAdjustedPrice(pricePred.optimalPrice);
+                          // Save the prediction to the prediction service
+                          predictionService.savePrediction(pricePred);
+                          toast({
+                            title: "Optimal Price Prediction",
+                            description: `Generated optimal price: ${formatCurrency(pricePred.optimalPrice)}`,
+                          });
+                        }
+                      }
+                    }}
+                    disabled={!selectedProductId}
                   >
-                    {loading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <Cpu className="mr-2 h-4 w-4" />
-                        Generate Optimal Price
-                      </>
-                    )}
+                    <Cpu className="mr-2 h-4 w-4" />
+                    Generate Optimal Price
                   </Button>
                 </>
               )}
@@ -361,6 +357,7 @@ const PricePredictionTab: React.FC = () => {
           </CardContent>
         </Card>
         
+        {/* Advanced KNN Prediction */}
         <Card>
           <CardHeader>
             <CardTitle>Advanced KNN Price Prediction</CardTitle>
@@ -451,6 +448,7 @@ const PricePredictionTab: React.FC = () => {
         </Card>
       </div>
       
+      {/* Price Factors Analysis */}
       {selectedProduct && prediction && (
         <Card>
           <CardHeader>
@@ -531,67 +529,73 @@ const PricePredictionTab: React.FC = () => {
       )}
       
       <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Price Comparison</CardTitle>
-            <CardDescription>Your price vs. competitors</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={competitorPrices}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-                  <Bar dataKey="price" name="Price">
-                    {competitorPrices.map((entry, index) => (
-                      <Cell 
-                        key={`cell-${index}`} 
-                        fill={entry.name === "Our Base Price" 
-                          ? "#3aa4ff" 
-                          : entry.name === "AI Suggested" 
-                            ? "#4ac0c0" 
-                            : "#8884d8"} 
-                      />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+        {/* Price Comparison */}
+        {selectedProduct && prediction && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Price Comparison</CardTitle>
+              <CardDescription>Your price vs. competitors</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={competitorPrices}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                    <Bar dataKey="price" name="Price">
+                      {competitorPrices.map((entry, index) => (
+                        <Cell 
+                          key={`cell-${index}`} 
+                          fill={entry.name === "Our Base Price" 
+                            ? "#3aa4ff" 
+                            : entry.name === "AI Suggested" 
+                              ? "#4ac0c0" 
+                              : "#8884d8"} 
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </CardContent>
           </Card>
-        </Card>
+        )}
         
-        <Card>
-          <CardHeader>
-            <CardTitle>Profit Optimization Curve</CardTitle>
-            <CardDescription>Estimated profit at different price points</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={profitCurveData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="price" 
-                    tickFormatter={(value) => formatCurrency(value)}
-                  />
-                  <YAxis />
-                  <Tooltip 
-                    formatter={(value, name) => [formatCurrency(Number(value)), 'Estimated Profit']}
-                    labelFormatter={(value) => `Price: ${formatCurrency(Number(value))}`}
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="profit" 
-                    stroke="#4ac0c0" 
-                    activeDot={{ r: 8 }} 
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+        {/* Profit Optimization Curve */}
+        {selectedProduct && prediction && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Profit Optimization Curve</CardTitle>
+              <CardDescription>Estimated profit at different price points</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={profitCurveData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis 
+                      dataKey="price" 
+                      tickFormatter={(value) => formatCurrency(value)}
+                    />
+                    <YAxis />
+                    <Tooltip 
+                      formatter={(value, name) => [formatCurrency(Number(value)), 'Estimated Profit']}
+                      labelFormatter={(value) => `Price: ${formatCurrency(Number(value))}`}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="profit" 
+                      stroke="#4ac0c0" 
+                      activeDot={{ r: 8 }} 
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
             </CardContent>
           </Card>
-        </Card>
+        )}
       </div>
     </div>
   );

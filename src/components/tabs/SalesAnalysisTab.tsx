@@ -17,10 +17,12 @@ import {
 import { dataService } from '@/services/dataService';
 import { Product, SalesTrend } from '@/types';
 import { formatCurrency, formatDate, formatNumber } from '@/utils/formatters';
+import ProductSelect from '../ProductSelect';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const SalesAnalysisTab: React.FC = () => {
+  const [products, setProducts] = useState<Product[]>([]);
   const [selectedProductId, setSelectedProductId] = useState<string>('');
   const [salesTrends, setSalesTrends] = useState<SalesTrend[]>([]);
   const [timeframe, setTimeframe] = useState<'all' | '30d' | '90d' | '180d'>('all');
@@ -31,18 +33,10 @@ const SalesAnalysisTab: React.FC = () => {
   }>>([]);
   const [loading, setLoading] = useState(true);
   
-  // Hardcoded iPhone models
-  const iPhoneModels = [
-    { id: 'iphone-15-pro-max', name: 'iPhone 15 Pro Max' },
-    { id: 'iphone-15', name: 'iPhone 15' },
-    { id: 'iphone-11', name: 'iPhone 11' },
-    { id: 'iphone-se-3', name: 'iPhone SE (3rd Gen)' },
-    { id: 'iphone-14-pro-max', name: 'iPhone 14 Pro Max' },
-  ];
-  
   useEffect(() => {
     // Load products
     const allProducts = dataService.getAllProducts();
+    setProducts(allProducts);
     
     // Calculate sales by category
     const allSales = dataService.getAllSales();
@@ -69,9 +63,9 @@ const SalesAnalysisTab: React.FC = () => {
     
     setSalesByCategory(categoryData);
     
-    // Select the first iPhone model by default
-    if (iPhoneModels.length > 0) {
-      setSelectedProductId(iPhoneModels[0].id);
+    // If there are products, select the first one by default
+    if (allProducts.length > 0) {
+      setSelectedProductId(allProducts[0].id);
     }
     
     setLoading(false);
@@ -117,52 +111,26 @@ const SalesAnalysisTab: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
         <div className="w-full md:w-1/3">
-          <Select
-            value={selectedProductId}
-            onValueChange={setSelectedProductId}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select a product to analyze" />
-            </SelectTrigger>
-            <SelectContent>
-              {iPhoneModels.map((model) => (
-                <SelectItem key={model.id} value={model.id}>
-                  {model.name}
-                </SelectItem>
-              ))}
-              <SelectItem value="all">All Products</SelectItem>
-            </SelectContent>
-          </Select>
+          <ProductSelect
+            products={products}
+            onProductSelect={setSelectedProductId}
+            selectedProductId={selectedProductId}
+            placeholder="Select a product to analyze"
+          />
         </div>
         
         <div>
           <TabsList>
-            <TabsTrigger 
-              value="all" 
-              onClick={() => setTimeframe('all')}
-              className={timeframe === 'all' ? 'bg-primary text-primary-foreground' : ''}
-            >
+            <TabsTrigger value="all" onClick={() => setTimeframe('all')}>
               All Time
             </TabsTrigger>
-            <TabsTrigger 
-              value="180d" 
-              onClick={() => setTimeframe('180d')}
-              className={timeframe === '180d' ? 'bg-primary text-primary-foreground' : ''}
-            >
+            <TabsTrigger value="180d" onClick={() => setTimeframe('180d')}>
               Last 180 Days
             </TabsTrigger>
-            <TabsTrigger 
-              value="90d" 
-              onClick={() => setTimeframe('90d')}
-              className={timeframe === '90d' ? 'bg-primary text-primary-foreground' : ''}
-            >
+            <TabsTrigger value="90d" onClick={() => setTimeframe('90d')}>
               Last 90 Days
             </TabsTrigger>
-            <TabsTrigger 
-              value="30d" 
-              onClick={() => setTimeframe('30d')}
-              className={timeframe === '30d' ? 'bg-primary text-primary-foreground' : ''}
-            >
+            <TabsTrigger value="30d" onClick={() => setTimeframe('30d')}>
               Last 30 Days
             </TabsTrigger>
           </TabsList>
@@ -174,8 +142,7 @@ const SalesAnalysisTab: React.FC = () => {
           <CardHeader>
             <CardTitle>Sales Trends</CardTitle>
             <CardDescription>
-              {selectedProductId === 'all' ? 'All Products' : 
-                iPhoneModels.find(m => m.id === selectedProductId)?.name || selectedProductId}
+              {selectedProductId === 'all' ? 'All Products' : products.find(p => p.id === selectedProductId)?.name}
               {' - '}
               {timeframe === 'all' ? 'All Time' : `Last ${timeframe.replace('d', ' Days')}`}
             </CardDescription>
