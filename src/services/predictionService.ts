@@ -16,6 +16,10 @@ class PredictionService {
     return this.predictedPrices[productId];
   }
 
+  public getPrediction(productId: string): PricePrediction | undefined {
+    return this.predictedProducts[productId];
+  }
+
   public getPredictedProducts(): Record<string, PricePrediction> {
     return { ...this.predictedProducts };
   }
