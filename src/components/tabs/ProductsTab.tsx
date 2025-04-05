@@ -31,8 +31,10 @@ import {
   COLOR_OPTIONS
 } from '@/constants/productSpecifications';
 import { useAuth } from '@/contexts/AuthContext';
+import { useProductSelection } from '@/hooks/use-product-selection';
 
 const ProductsTab: React.FC = () => {
+  const { userAddedProducts, loading: productsLoading, addUserProduct } = useProductSelection();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
   const [dataset, setDataset] = useState<SmartphoneInputData[]>([]);
@@ -49,18 +51,15 @@ const ProductsTab: React.FC = () => {
 
   useEffect(() => {
     const dataset = dataService.getDataset();
-    const allProducts = dataService.getAllProducts();
-    
     setDataset(dataset || []);
-    setProducts(allProducts);
+    
+    setProducts(userAddedProducts);
     
     if (dataset && dataset.length > 0) {
-      // Extract unique brands, models and categories
       const brands = [...new Set(dataset.map(item => item.Brand))];
       
-      // Extract only a reasonable number of unique models (10-20)
       const allModels = [...new Set(dataset.map(item => item.Model))];
-      const limitedModels = allModels.slice(0, 20); // Limit to 20 models
+      const limitedModels = allModels.slice(0, 20);
       
       const categories = [...new Set(dataset.map(item => item.Category))];
       
@@ -68,14 +67,14 @@ const ProductsTab: React.FC = () => {
       setUniqueModels(limitedModels);
       setUniqueCategories(categories);
     }
-  }, []);
+  }, [userAddedProducts]);
 
   useEffect(() => {
     if (selectedBrand && dataset) {
       const models = [...new Set(dataset
         .filter(item => item.Brand === selectedBrand)
         .map(item => item.Model))];
-      setFilteredModels(models.slice(0, 20)); // Limit to 20 models
+      setFilteredModels(models.slice(0, 20));
     } else {
       setFilteredModels(uniqueModels);
     }
@@ -175,7 +174,16 @@ const ProductsTab: React.FC = () => {
     }
   }, [selectedModel, selectedBrand, matchingSpecs, form, dataset]);
 
-  const onSubmit = (values: z.infer<typeof formSchema>) => {
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please login to add products",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     setLoading(true);
     
     const specsMatch = verifySpecifications(values);
@@ -190,49 +198,39 @@ const ProductsTab: React.FC = () => {
       return;
     }
     
-    const newProduct: SmartphoneInputData = {
-      Brand: values.brand,
-      Model: values.model,
-      Price: values.price,
-      "Original Price": values.price,
-      Stock: values.stock,
-      Category: values.category,
-      Specifications: {
-        Storage: values.storage,
-        RAM: values.ram,
-        "Processor Type": values.processor,
-        "Display Hz": values.display,
-        "Camera MP": values.camera,
-        "Battery Capacity": values.battery,
-        OS: values.os || undefined,
-        Color: values.color || undefined
-      },
-      "Month of Sale": values.month,
-      "Seasonal Effect": values.seasonalEffect,
-      "Demand Level": values.demandLevel,
-      year_of_sale: values.yearOfSale
+    const productData: Omit<Product, 'id'> = {
+      name: `${values.brand} ${values.model}`,
+      basePrice: Number(values.price),
+      category: values.category,
+      inventory: values.stock,
+      cost: Number(values.price) * 0.7,
+      seasonality: values.seasonalEffect / 10,
+      specifications: {
+        model: values.model,
+        storage: values.storage,
+        ram: values.ram,
+        processor: values.processor,
+        displayHz: values.display,
+        cameraMp: values.camera,
+        batteryCapacity: values.battery,
+        os: values.os,
+        color: values.color,
+        monthOfSale: values.month,
+        seasonalEffect: values.seasonalEffect,
+        demandLevel: values.demandLevel,
+        yearOfSale: values.yearOfSale
+      }
     };
     
-    const existingProductData = dataset.find(item => item.Model === values.model);
-    if (existingProductData && existingProductData["Competitor Price"]) {
-      const currentPrice = parseFloat(values.price);
-      const competitorPrice = existingProductData["Competitor Price"];
-      const newCompetitorPrice = (currentPrice + competitorPrice) / 2;
-      
-      newProduct["Competitor Price"] = newCompetitorPrice;
+    const newProduct = await addUserProduct(productData);
+    
+    if (newProduct) {
+      setLoading(false);
+      setShowAddForm(false);
+      form.reset();
+    } else {
+      setLoading(false);
     }
-    
-    dataService.addProduct(newProduct);
-    
-    toast({
-      title: "Product Added",
-      description: `Successfully added ${values.brand} ${values.model}`,
-    });
-    
-    setProducts(dataService.getAllProducts());
-    setLoading(false);
-    setShowAddForm(false);
-    form.reset();
   };
 
   const verifySpecifications = (values: z.infer<typeof formSchema>) => {
@@ -243,7 +241,6 @@ const ProductsTab: React.FC = () => {
     
     const specs = matchingProducts[0].Specifications;
     
-    // Check if the values are in the allowed lists
     if (!STORAGE_OPTIONS.includes(values.storage as any)) return false;
     if (!RAM_OPTIONS.includes(values.ram as any)) return false;
     if (!PROCESSOR_OPTIONS.includes(values.processor as any)) return false;
@@ -267,16 +264,29 @@ const ProductsTab: React.FC = () => {
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Products</h2>
           <p className="text-muted-foreground">
-            Manage and add products to your inventory
+            {user ? 'Manage and add your products to your inventory' : 'Please login to manage your products'}
           </p>
         </div>
         <Button 
           onClick={() => setShowAddForm(!showAddForm)}
           className="flex items-center gap-2"
+          disabled={!user}
         >
           {showAddForm ? "Cancel" : <><Plus className="h-4 w-4" /> Add Product</>}
         </Button>
       </div>
+
+      {!user && (
+        <Card>
+          <CardContent className="py-6">
+            <div className="text-center">
+              <p className="text-muted-foreground mb-4">
+                You need to be logged in to manage your products.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {showAddForm && (
         <Card>
@@ -575,35 +585,44 @@ const ProductsTab: React.FC = () => {
       )}
       
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {products.map(product => (
-          <Card key={product.id} className="overflow-hidden">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg">{product.name}</CardTitle>
-              <CardDescription>
-                {product.category} - ${product.basePrice.toFixed(2)}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div>
-                  <span className="font-medium">Stock:</span> {product.inventory}
-                </div>
-                <div>
-                  <span className="font-medium">Cost:</span> ${product.cost.toFixed(2)}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-        
-        {products.length === 0 && (
-          <div className="col-span-full text-center py-10">
-            <Package className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-            <h3 className="text-lg font-medium">No Products Added</h3>
-            <p className="text-muted-foreground">
-              Click the "Add Product" button to add your first product.
-            </p>
+        {productsLoading ? (
+          <div className="col-span-full flex justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
+        ) : (
+          <>
+            {products.map(product => (
+              <Card key={product.id} className="overflow-hidden">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg">{product.name}</CardTitle>
+                  <CardDescription>
+                    {product.category} - ${product.basePrice.toFixed(2)}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="font-medium">Stock:</span> {product.inventory}
+                    </div>
+                    <div>
+                      <span className="font-medium">Cost:</span> ${product.cost.toFixed(2)}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+            
+            {products.length === 0 && (
+              <div className="col-span-full text-center py-10">
+                <Package className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+                <h3 className="text-lg font-medium">No Products Added</h3>
+                <p className="text-muted-foreground">
+                  {user ? "Click the \"Add Product\" button to add your first product." 
+                       : "Please login to add and manage your products."}
+                </p>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

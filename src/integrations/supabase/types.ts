@@ -153,6 +153,95 @@ export type Database = {
         }
         Relationships: []
       }
+      user_price_predictions: {
+        Row: {
+          base_price: number
+          confidence: number | null
+          created_at: string | null
+          factors: Json | null
+          id: string
+          optimal_price: number
+          product_id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          base_price: number
+          confidence?: number | null
+          created_at?: string | null
+          factors?: Json | null
+          id?: string
+          optimal_price: number
+          product_id: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          base_price?: number
+          confidence?: number | null
+          created_at?: string | null
+          factors?: Json | null
+          id?: string
+          optimal_price?: number
+          product_id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_price_predictions_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "user_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_products: {
+        Row: {
+          base_price: number
+          category: string
+          cost: number
+          created_at: string | null
+          id: string
+          inventory: number | null
+          model: string
+          name: string
+          seasonality: number | null
+          specifications: Json | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          base_price: number
+          category: string
+          cost: number
+          created_at?: string | null
+          id?: string
+          inventory?: number | null
+          model: string
+          name: string
+          seasonality?: number | null
+          specifications?: Json | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          base_price?: number
+          category?: string
+          cost?: number
+          created_at?: string | null
+          id?: string
+          inventory?: number | null
+          model?: string
+          name?: string
+          seasonality?: number | null
+          specifications?: Json | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

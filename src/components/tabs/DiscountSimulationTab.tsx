@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
@@ -24,9 +25,11 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, BarChart as BarChartIcon, LineChart as LineChartIcon, RefreshCw } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useProductSelection } from '@/hooks/use-product-selection';
+import { useAuth } from '@/contexts/AuthContext';
 
 const DiscountSimulationTab: React.FC = () => {
-  const [products, setProducts] = useState<Product[]>([]);
+  const { productsWithPredictions, predictedPrices } = useProductSelection();
   const [selectedProductId, setSelectedProductId] = useState<string>('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [simulations, setSimulations] = useState<SimulationResult[]>([]);
@@ -40,17 +43,9 @@ const DiscountSimulationTab: React.FC = () => {
   
   // For comparison
   const [compareMode, setCompareMode] = useState(false);
-  // Predicted prices
-  const [predictedPrices, setPredictedPrices] = useState<Record<string, number>>({});
+  const { user } = useAuth();
   
   useEffect(() => {
-    // Load products
-    const allProducts = dataService.getAllProducts();
-    // Filter to only include products with predictions
-    const productsWithPredictions = predictionService.getProductsWithPredictions(allProducts);
-    setProducts(productsWithPredictions);
-    setPredictedPrices(predictionService.getAllPredictedPrices());
-    
     // Extract unique models from the dataset
     const dataset = dataService.getDataset();
     if (dataset && dataset.length > 0) {
@@ -64,34 +59,31 @@ const DiscountSimulationTab: React.FC = () => {
     }
     
     setLoading(false);
-  }, []);
+  }, [productsWithPredictions]);
   
   useEffect(() => {
     if (!selectedProductId) return;
     
-    // Get the selected product
-    const product = dataService.getProductById(selectedProductId);
+    // Get the selected product from products with predictions
+    const product = productsWithPredictions.find(p => p.id === selectedProductId);
     setSelectedProduct(product || null);
     
     // Clear simulations when product changes
     setSimulations([]);
-  }, [selectedProductId]);
+  }, [selectedProductId, productsWithPredictions]);
   
-  // When selected model changes, get products with that model
+  // When selected model changes, find a matching product with prediction
   useEffect(() => {
-    if (selectedModel) {
-      const matchingProducts = dataService.getProductsByModel(selectedModel);
-      const productsWithPredictions = matchingProducts.filter(product => 
-        predictionService.hasPrediction(product.id)
+    if (selectedModel && productsWithPredictions.length > 0) {
+      const matchingProduct = productsWithPredictions.find(p => 
+        p.specifications?.model === selectedModel
       );
       
-      if (productsWithPredictions.length > 0) {
-        setSelectedProductId(productsWithPredictions[0].id);
-      } else if (matchingProducts.length > 0) {
-        setSelectedProductId(matchingProducts[0].id);
+      if (matchingProduct) {
+        setSelectedProductId(matchingProduct.id);
       }
     }
-  }, [selectedModel]);
+  }, [selectedModel, productsWithPredictions]);
   
   const runSimulation = () => {
     if (!selectedProductId || !selectedProduct) return;
@@ -189,7 +181,7 @@ const DiscountSimulationTab: React.FC = () => {
   
   // Get product options with predicted prices
   const getProductOptionsWithPredictions = () => {
-    return products.map(product => {
+    return productsWithPredictions.map(product => {
       const predictedPrice = predictedPrices[product.id] || product.basePrice;
       
       return {
@@ -206,6 +198,18 @@ const DiscountSimulationTab: React.FC = () => {
   
   return (
     <div className="space-y-6">
+      {!user && (
+        <Card>
+          <CardContent className="py-6">
+            <div className="text-center">
+              <p className="text-muted-foreground mb-4">
+                You need to be logged in to simulate discounts for your products.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
       <div className="grid gap-6 md:grid-cols-3">
         <Card className="md:col-span-2">
           <CardHeader>
@@ -214,83 +218,94 @@ const DiscountSimulationTab: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Select Model</Label>
-                  <Select
-                    value={selectedModel}
-                    onValueChange={setSelectedModel}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a Model" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {models.map(model => (
-                        <SelectItem key={model} value={model}>{model}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+              {productsWithPredictions.length === 0 ? (
+                <div className="text-center p-4 border border-dashed rounded-md">
+                  <p className="text-muted-foreground">
+                    {user ? "No products with predictions found. Generate price predictions in the Price Prediction tab first." 
+                          : "Login to manage your products and run discount simulations."}
+                  </p>
                 </div>
-                
-                <div className="space-y-2">
-                  <Label>Select Product</Label>
-                  <ProductSelect
-                    products={products}
-                    onProductSelect={setSelectedProductId}
-                    selectedProductId={selectedProductId}
-                    placeholder="Select a product with prediction"
-                    showPrices={false}
-                    predictedPrices={predictedPrices}
-                  />
-                </div>
-              </div>
-              
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Discount Rate: {formatPercentage(discountRate)}</Label>
-                  <Slider
-                    value={[discountRate]}
-                    min={0}
-                    max={0.5}
-                    step={0.01}
-                    onValueChange={(value) => setDiscountRate(value[0])}
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label>Expected Demand Multiplier</Label>
-                  <div className="flex items-center space-x-2">
-                    <Input 
-                      type="number" 
-                      min={0.5} 
-                      max={3} 
-                      step={0.1}
-                      value={expectedDemandIncrease}
-                      onChange={(e) => setExpectedDemandIncrease(Number(e.target.value))}
-                    />
-                    <span className="text-sm text-muted-foreground">
-                      ({formatPercentage(expectedDemandIncrease - 1)} increase)
-                    </span>
+              ) : (
+                <>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Select Model</Label>
+                      <Select
+                        value={selectedModel}
+                        onValueChange={setSelectedModel}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a Model" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {models.map(model => (
+                            <SelectItem key={model} value={model}>{model}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label>Select Product</Label>
+                      <ProductSelect
+                        products={productsWithPredictions}
+                        onProductSelect={setSelectedProductId}
+                        selectedProductId={selectedProductId}
+                        placeholder="Select a product with prediction"
+                        showPrices={false}
+                        predictedPrices={predictedPrices}
+                      />
+                    </div>
                   </div>
-                </div>
-              </div>
-              
-              <div className="flex justify-between items-center">
-                <Button
-                  variant="outline"
-                  onClick={resetSimulations}
-                  disabled={simulations.length === 0}
-                >
-                  <RefreshCw className="mr-2 h-4 w-4" /> Reset
-                </Button>
-                
-                <Button
-                  onClick={runSimulation}
-                  disabled={!selectedProductId}
-                >
-                  Run Simulation <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </div>
+                  
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Discount Rate: {formatPercentage(discountRate)}</Label>
+                      <Slider
+                        value={[discountRate]}
+                        min={0}
+                        max={0.5}
+                        step={0.01}
+                        onValueChange={(value) => setDiscountRate(value[0])}
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label>Expected Demand Multiplier</Label>
+                      <div className="flex items-center space-x-2">
+                        <Input 
+                          type="number" 
+                          min={0.5} 
+                          max={3} 
+                          step={0.1}
+                          value={expectedDemandIncrease}
+                          onChange={(e) => setExpectedDemandIncrease(Number(e.target.value))}
+                        />
+                        <span className="text-sm text-muted-foreground">
+                          ({formatPercentage(expectedDemandIncrease - 1)} increase)
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-between items-center">
+                    <Button
+                      variant="outline"
+                      onClick={resetSimulations}
+                      disabled={simulations.length === 0}
+                    >
+                      <RefreshCw className="mr-2 h-4 w-4" /> Reset
+                    </Button>
+                    
+                    <Button
+                      onClick={runSimulation}
+                      disabled={!selectedProductId}
+                    >
+                      Run Simulation <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
+                  </div>
+                </>
+              )}
             </div>
           </CardContent>
         </Card>

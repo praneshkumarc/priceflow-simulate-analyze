@@ -7,20 +7,50 @@ import SalesAnalysisTab from './tabs/SalesAnalysisTab';
 import PricePredictionTab from './tabs/PricePredictionTab';
 import DiscountSimulationTab from './tabs/DiscountSimulationTab';
 import ProductsTab from './tabs/ProductsTab';
-import { Database, BarChart, LineChart, Percent, Package } from 'lucide-react';
-import { predictionService } from '@/services/predictionService';
+import { Database, BarChart, LineChart, Percent, Package, UserRound, LogOut } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useToast } from '@/hooks/use-toast';
 
 const Dashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState('data-collection');
+  const [activeTab, setActiveTab] = useState('products');
+  const { user, signOut } = useAuth();
+  const { toast } = useToast();
   
-  // Add effect to listen for tab changes and update prediction data
-  useEffect(() => {
-    if (activeTab === 'discount-simulation') {
-      // When going to discount simulation, ensure we have the latest predictions
-      const predictions = predictionService.getPredictedProducts();
-      console.log('Available predictions for discount simulation:', Object.keys(predictions).length);
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      toast({
+        title: "Signed out successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Sign out failed",
+        description: "Failed to sign out",
+        variant: "destructive",
+      });
     }
-  }, [activeTab]);
+  };
+  
+  // Get user initials for avatar
+  const getUserInitials = () => {
+    if (!user) return 'G';
+    
+    const email = user.email || '';
+    if (email) {
+      return email.substring(0, 2).toUpperCase();
+    }
+    return 'U';
+  };
   
   return (
     <TooltipProvider>
@@ -31,12 +61,40 @@ const Dashboard: React.FC = () => {
               <h1 className="text-2xl font-bold text-app-blue-600">PriceFlow</h1>
               <p className="text-sm text-gray-500">Dynamic Pricing Simulator</p>
             </div>
+            
+            {user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="rounded-full h-8 w-8 p-0">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback>{getUserInitials()}</AvatarFallback>
+                    </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem disabled>
+                    <UserRound className="mr-2 h-4 w-4" />
+                    {user.email}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleSignOut}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Sign out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Button variant="outline" onClick={() => window.location.href = "/auth"}>
+                Sign In
+              </Button>
+            )}
           </div>
         </header>
         
         <main className="container mx-auto px-6 py-8 flex-1">
           <Tabs
-            defaultValue="data-collection"
+            defaultValue="products"
             value={activeTab}
             onValueChange={setActiveTab}
             className="space-y-6"

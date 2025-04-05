@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
@@ -30,9 +29,11 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Search, Cpu, LineChart as LineChartIcon } from 'lucide-react';
+import { useProductSelection } from '@/hooks/use-product-selection';
+import { useAuth } from '@/contexts/AuthContext';
 
 const PricePredictionTab: React.FC = () => {
-  const [products, setProducts] = useState<Product[]>([]);
+  const { userAddedProducts, predictedPrices, savePrediction } = useProductSelection();
   const [selectedProductId, setSelectedProductId] = useState<string>('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [prediction, setPrediction] = useState<PricePrediction | null>(null);
@@ -46,12 +47,9 @@ const PricePredictionTab: React.FC = () => {
   const [profitMargin, setProfitMargin] = useState<number>(30); // Default 30%
   const [knnPredictedPrice, setKnnPredictedPrice] = useState<number | null>(null);
   const { toast } = useToast();
+  const { user } = useAuth();
   
   useEffect(() => {
-    // Load products
-    const allProducts = dataService.getAllProducts();
-    setProducts(allProducts);
-    
     // Extract unique models from the dataset
     const dataset = dataService.getDataset();
     if (dataset && dataset.length > 0) {
@@ -59,19 +57,19 @@ const PricePredictionTab: React.FC = () => {
       setModels(uniqueModels);
     }
     
-    // If there are products, select the first one by default
-    if (allProducts.length > 0) {
-      setSelectedProductId(allProducts[0].id);
+    // If there are user products, select the first one by default
+    if (userAddedProducts.length > 0) {
+      setSelectedProductId(userAddedProducts[0].id);
     }
     
     setLoading(false);
-  }, []);
+  }, [userAddedProducts]);
   
   useEffect(() => {
     if (!selectedProductId) return;
     
-    // Get the selected product
-    const product = dataService.getProductById(selectedProductId);
+    // Get the selected product from user's products
+    const product = userAddedProducts.find(p => p.id === selectedProductId);
     if (product) {
       setSelectedProduct(product);
       
@@ -81,6 +79,9 @@ const PricePredictionTab: React.FC = () => {
         setPrediction(pricePred);
         setAdjustedPrice(pricePred.optimalPrice);
         setBasePrice(pricePred.basePrice);
+        
+        // Save the prediction to the database
+        savePrediction(selectedProductId, pricePred);
       }
       
       // Get competitor prices
@@ -119,7 +120,7 @@ const PricePredictionTab: React.FC = () => {
       
       setCompetitorPrices(avgCompPrices);
     }
-  }, [selectedProductId]);
+  }, [selectedProductId, userAddedProducts]);
   
   // Prepare data for the factors radar chart
   const radarData = prediction ? [
@@ -213,6 +214,18 @@ const PricePredictionTab: React.FC = () => {
   
   return (
     <div className="space-y-6">
+      {!user && (
+        <Card>
+          <CardContent className="py-6">
+            <div className="text-center">
+              <p className="text-muted-foreground mb-4">
+                You need to be logged in to predict prices for your products.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
       <div className="grid gap-6 md:grid-cols-2">
         {/* Standard Product Selection */}
         <Card>
@@ -222,12 +235,21 @@ const PricePredictionTab: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <ProductSelect
-                products={products}
-                onProductSelect={setSelectedProductId}
-                selectedProductId={selectedProductId}
-                placeholder="Select a product for price prediction"
-              />
+              {userAddedProducts.length === 0 ? (
+                <div className="text-center p-4 border border-dashed rounded-md">
+                  <p className="text-muted-foreground">
+                    {user ? "No products found. Add products in the Products tab first." 
+                          : "Login to manage your products and run price predictions."}
+                  </p>
+                </div>
+              ) : (
+                <ProductSelect
+                  products={userAddedProducts}
+                  onProductSelect={setSelectedProductId}
+                  selectedProductId={selectedProductId}
+                  placeholder="Select a product for price prediction"
+                />
+              )}
               
               {selectedProduct && prediction && (
                 <div className="space-y-4 mt-4">
