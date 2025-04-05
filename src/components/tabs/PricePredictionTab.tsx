@@ -64,7 +64,13 @@ const PricePredictionTab: React.FC = () => {
         // Get average price for this model from the dataset
         const modelItems = dataset.filter(item => item.Model === uniqueModels[0]);
         if (modelItems.length > 0) {
-          const avgPrice = modelItems.reduce((sum, item) => sum + (item.Price || 0), 0) / modelItems.length;
+          // FIX: Convert any string prices to numbers before adding
+          const avgPrice = modelItems.reduce((sum, item) => {
+            // Ensure Price is treated as a number
+            const itemPrice = typeof item.Price === 'string' ? parseFloat(item.Price) : item.Price;
+            return sum + (itemPrice || 0);
+          }, 0) / modelItems.length;
+          
           setBasePrice(avgPrice);
         }
       }
@@ -144,7 +150,13 @@ const PricePredictionTab: React.FC = () => {
       const dataset = dataService.getDataset();
       const modelItems = dataset.filter(item => item.Model === selectedModel);
       if (modelItems.length > 0) {
-        const avgPrice = modelItems.reduce((sum, item) => sum + (item.Price || 0), 0) / modelItems.length;
+        // FIX: Convert any string prices to numbers before adding
+        const avgPrice = modelItems.reduce((sum, item) => {
+          // Ensure Price is treated as a number
+          const itemPrice = typeof item.Price === 'string' ? parseFloat(item.Price) : item.Price;
+          return sum + (itemPrice || 0);
+        }, 0) / modelItems.length;
+        
         setBasePrice(avgPrice);
       }
     }
