@@ -26,7 +26,11 @@ const SalesAnalysisTab: React.FC = () => {
   const [selectedProductId, setSelectedProductId] = useState<string>('');
   const [salesTrends, setSalesTrends] = useState<SalesTrend[]>([]);
   const [timeframe, setTimeframe] = useState<'all' | '30d' | '90d' | '180d'>('all');
-  const [salesByCategory, setSalesByCategory] = useState<any[]>([]);
+  const [salesByCategory, setSalesByCategory] = useState<Array<{
+    name: string;
+    value: number;
+    units: number;
+  }>>([]);
   const [loading, setLoading] = useState(true);
   
   useEffect(() => {

@@ -671,6 +671,10 @@ class DataService {
     return this.productSales.filter(sale => sale.productId === productId);
   }
 
+  public getAllSales(): ProductSale[] {
+    return this.productSales;
+  }
+
   public getCompetitorPrices(productId: string): CompetitorPrice[] {
     return this.competitorPrices.filter(price => price.productId === productId);
   }
@@ -684,11 +688,30 @@ class DataService {
     }));
   }
 
+  public getSalesTrends(productId?: string, startDate?: string): { date: string; sales: number; revenue: number; }[] {
+    let sales = productId ? this.getProductSales(productId) : this.productSales;
+    
+    if (startDate) {
+      sales = sales.filter(sale => sale.date >= startDate);
+    }
+
+    const salesByDate = sales.reduce((acc, sale) => {
+      if (!acc[sale.date]) {
+        acc[sale.date] = { date: sale.date, sales: 0, revenue: 0 };
+      }
+      acc[sale.date].sales += sale.quantity;
+      acc[sale.date].revenue += sale.quantity * sale.price;
+      return acc;
+    }, {} as Record<string, { date: string; sales: number; revenue: number; }>);
+
+    const result = Object.values(salesByDate).sort((a, b) => a.date.localeCompare(b.date));
+    return result;
+  }
+
   public predictOptimalPrice(productId: string): PricePrediction | null {
     const product = this.getProductById(productId);
     if (!product) return null;
 
-    // Mock prediction logic
     const demandCoefficient = 0.8;
     const competitorInfluence = 0.1;
     const seasonalityFactor = product.seasonality;
@@ -711,27 +734,20 @@ class DataService {
     };
   }
 
-  // Add or modify this method to accept a custom original price parameter
   public simulateDiscount(params: SimulationParams, originalPrice?: number): SimulationResult {
-    // Get product by ID
     const product = this.getProductById(params.productId);
     
-    // Use provided originalPrice if available, otherwise use product's basePrice
     const productPrice = originalPrice || (product?.basePrice || 0);
     
-    // Calculate discounted price
     const discountedPrice = productPrice * (1 - params.discountRate);
     
-    // Calculate profit based on price elasticity model
-    const elasticity = -1.5; // Price elasticity of demand (-1.5 means 1% price decrease -> 1.5% demand increase)
+    const elasticity = -1.5;
     const priceChangePercent = -params.discountRate;
     const quantityChangePercent = -priceChangePercent * elasticity * params.expectedDemandIncrease;
     
-    // Assume baseline quantity of 100 units per month
     const baselineQuantity = 100;
     const expectedQuantity = baselineQuantity * (1 + quantityChangePercent);
     
-    // Calculate revenue and profit
     const expectedRevenue = expectedQuantity * discountedPrice;
     const expectedProfit = expectedQuantity * (discountedPrice - (product?.cost || 0));
     
@@ -745,20 +761,71 @@ class DataService {
     };
   }
 
-  getDataset(): SmartphoneInputData[] {
+  public getDataset(): SmartphoneInputData[] {
     return this.dataset;
   }
 
-  predictPrice(modelName: string, basePrice: number, profitMargin: number): number {
-    // Find the closest neighbors based on specifications
+  public predictPrice(modelName: string, basePrice: number, profitMargin: number): number {
     const modelData = this.dataset.filter(item => item.Model === modelName);
     if (modelData.length === 0) {
       throw new Error(`No data found for model ${modelName}`);
     }
 
-    // Calculate the predicted price based on the average price of the neighbors
     const predictedPrice = basePrice * (1 + profitMargin / 100);
     return predictedPrice;
+  }
+
+  public updateDataset(data: SmartphoneInputData[]): void {
+    this.dataset = data;
+    console.log("Dataset updated:", data.length, "records");
+  }
+
+  public updateProducts(newProducts: Product[]): void {
+    this.products = [...newProducts];
+    console.log("Products updated:", this.products.length, "products");
+    
+    this.generateSampleSales();
+  }
+
+  private generateSampleSales(): void {
+    this.productSales = [];
+    
+    this.products.forEach((product, index) => {
+      for (let i = 0; i < 5; i++) {
+        const daysAgo = Math.floor(Math.random() * 30);
+        const date = new Date();
+        date.setDate(date.getDate() - daysAgo);
+        const dateStr = date.toISOString().split('T')[0];
+        
+        this.productSales.push({
+          id: `sale-${index}-${i}`,
+          productId: product.id,
+          date: dateStr,
+          quantity: Math.floor(Math.random() * 10) + 1,
+          price: product.basePrice
+        });
+      }
+    });
+    
+    console.log("Sample sales generated:", this.productSales.length, "sales");
+  }
+
+  public getTopSellingProducts(limit: number = 5): { product: Product; revenue: number; units: number }[] {
+    const productStats = this.products.map(product => {
+      const sales = this.getProductSales(product.id);
+      const units = sales.reduce((sum, sale) => sum + sale.quantity, 0);
+      const revenue = sales.reduce((sum, sale) => sum + (sale.price * sale.quantity), 0);
+      
+      return {
+        product,
+        revenue,
+        units
+      };
+    });
+    
+    return productStats
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, limit);
   }
 }
 

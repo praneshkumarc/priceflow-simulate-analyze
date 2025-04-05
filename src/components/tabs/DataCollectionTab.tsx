@@ -37,7 +37,7 @@ const DataCollectionTab: React.FC = () => {
     fetchData();
   }, []);
   
-  const handleDatasetProcessed = (data: SmartphoneProduct[]) => {
+  const handleDatasetProcessed = (data: any[]) => {
     // Update the dataService with the new products
     dataService.updateProducts(data);
     
