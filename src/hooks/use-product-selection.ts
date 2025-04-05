@@ -3,9 +3,10 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { dataService } from '@/services/dataService';
 import { predictionService } from '@/services/predictionService';
-import { Product, PricePrediction } from '@/types';
+import { Product, PricePrediction, PriceFactors } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { Json } from '@/integrations/supabase/types';
 
 // Define interfaces for Supabase table rows
 interface UserProduct {
@@ -30,7 +31,7 @@ interface UserPricePrediction {
   base_price: number;
   optimal_price: number;
   confidence: number | null;
-  factors: any | null;
+  factors: Json | null;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -229,6 +230,14 @@ export function useProductSelection() {
     }
 
     try {
+      // Convert PriceFactors to a plain object compatible with Json type
+      const factorsAsJson: Record<string, number> = {
+        demandCoefficient: prediction.factors.demandCoefficient,
+        competitorInfluence: prediction.factors.competitorInfluence,
+        seasonalityFactor: prediction.factors.seasonalityFactor,
+        marginOptimization: prediction.factors.marginOptimization
+      };
+
       // Check if prediction already exists
       const { data: existing } = await supabase
         .from('user_price_predictions')
@@ -246,7 +255,7 @@ export function useProductSelection() {
             base_price: prediction.basePrice,
             optimal_price: prediction.optimalPrice,
             confidence: prediction.confidence,
-            factors: prediction.factors,
+            factors: factorsAsJson,
             updated_at: new Date().toISOString(),
           })
           .eq('id', existing.id);
@@ -260,7 +269,7 @@ export function useProductSelection() {
             base_price: prediction.basePrice,
             optimal_price: prediction.optimalPrice,
             confidence: prediction.confidence,
-            factors: prediction.factors,
+            factors: factorsAsJson
           });
       }
 
