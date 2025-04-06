@@ -1,559 +1,384 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Slider } from '@/components/ui/slider';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Separator } from '@/components/ui/separator';
-import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle, ArrowRight, CheckCircle2, DollarSign, LineChart, Percent, TrendingUp } from 'lucide-react';
-import { useProductSelection } from '@/hooks/use-product-selection';
+import { ProductSelect } from '@/components/ProductSelect';
+import { Slider } from "@/components/ui/slider";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import { dataService } from '@/services/dataService';
 import { predictionService } from '@/services/predictionService';
-import { Product, PriceFactors, PricePrediction } from '@/types';
-import { formatCurrency, formatPercentage } from '@/utils/formatters';
+import { useProductSelection } from '@/hooks/use-product-selection';
+import { Product, PricePrediction } from '@/types';
+import { Loader2, HelpCircle } from 'lucide-react';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs"
 import PriceElasticityChart from '@/components/charts/PriceElasticityChart';
 import PriceComparisonChart from '@/components/charts/PriceComparisonChart';
 import ProfitProjectionChart from '@/components/charts/ProfitProjectionChart';
-import { useToast } from '@/hooks/use-toast';
 
 const PricePredictionTab: React.FC = () => {
-  const { userAddedProducts, savePrediction, predictedPrices, loading } = useProductSelection();
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [optimizedPrice, setOptimizedPrice] = useState<number | null>(null);
-  const [manualPrice, setManualPrice] = useState<number | null>(null);
-  const [confidence, setConfidence] = useState(85);
-  const [priceFactors, setPriceFactors] = useState<PriceFactors>({
-    demandCoefficient: 0.7,
-    competitorInfluence: 0.5,
-    seasonalityFactor: 0.3,
-    marginOptimization: 0.8,
-  });
-  const [predictionSaved, setPredictionSaved] = useState(false);
-  const [activeTab, setActiveTab] = useState('automatic');
-  const [productCost, setProductCost] = useState<number>(0);
-  const { toast } = useToast();
+  const [selectedProductId, setSelectedProductId] = useState<string | undefined>(undefined);
+  const [predictedPrice, setPredictedPrice] = useState<number | undefined>(undefined);
+  const [confidence, setConfidence] = useState<number | undefined>(undefined);
+  const [demandCoefficient, setDemandCoefficient] = useState<number>(0.8);
+  const [competitorInfluence, setCompetitorInfluence] = useState<number>(0.1);
+  const [seasonalityFactor, setSeasonalityFactor] = useState<number>(0.2);
+  const [marginOptimization, setMarginOptimization] = useState<number>(0.15);
+  const [discountRate, setDiscountRate] = useState<number>(0.1);
+  const [expectedDemandIncrease, setExpectedDemandIncrease] = useState<number>(1.05);
+  const [estimatedSales, setEstimatedSales] = useState<number>(100);
+  const [profit, setProfit] = useState<number | undefined>(undefined);
+  const [revenue, setRevenue] = useState<number | undefined>(undefined);
+  const [productCost, setProductCost] = useState<number | undefined>(undefined);
+  const [loading, setLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [priceOverride, setPriceOverride] = useState<number | undefined>(undefined);
+  const [originalPrice, setOriginalPrice] = useState<number | undefined>(undefined);
 
-  // Update product cost when selected product changes
+  const { 
+    allProducts, 
+    userAddedProducts, 
+    productsWithPredictions,
+    predictedPrices,
+    loading: productsLoading,
+    savePrediction,
+    savePricePredictionToSupabase
+  } = useProductSelection();
+
+  const products = userAddedProducts.length > 0 ? userAddedProducts : allProducts;
+  const hasProducts = products && products.length > 0;
+
   useEffect(() => {
-    if (selectedProduct) {
-      setProductCost(selectedProduct.cost);
-      
-      // Check if there's a saved prediction for this product
-      const savedPrice = predictedPrices[selectedProduct.id];
-      if (savedPrice) {
-        setOptimizedPrice(savedPrice);
-        setManualPrice(savedPrice);
-        
-        // Get full prediction details if available
-        const predictionDetails = predictionService.getPredictionDetails(selectedProduct.id);
-        if (predictionDetails) {
-          setPriceFactors(predictionDetails.factors);
-          setConfidence(predictionDetails.confidence);
-        }
-      } else {
-        // Reset to defaults if no prediction exists
-        setOptimizedPrice(null);
-        setManualPrice(selectedProduct.basePrice);
-        setPriceFactors({
-          demandCoefficient: 0.7,
-          competitorInfluence: 0.5,
-          seasonalityFactor: 0.3,
-          marginOptimization: 0.8,
-        });
-        setConfidence(85);
-      }
-      
-      setPredictionSaved(false);
+    if (selectedProductId) {
+      const product = dataService.getProductById(selectedProductId);
+      setOriginalPrice(product?.basePrice);
     }
-  }, [selectedProduct, predictedPrices]);
+  }, [selectedProductId]);
 
-  const handleProductChange = (productId: string) => {
-    const product = userAddedProducts.find(p => p.id === productId) || null;
-    setSelectedProduct(product);
+  useEffect(() => {
+    if (selectedProductId) {
+      const savedPrediction = predictionService.getPredictionDetails(selectedProductId);
+      if (savedPrediction) {
+        setPredictedPrice(savedPrediction.optimalPrice);
+        setConfidence(savedPrediction.confidence);
+        setDemandCoefficient(savedPrediction.factors.demandCoefficient);
+        setCompetitorInfluence(savedPrediction.factors.competitorInfluence);
+        setSeasonalityFactor(savedPrediction.factors.seasonalityFactor);
+        setMarginOptimization(savedPrediction.factors.marginOptimization);
+        setProductCost(savedPrediction.productCost);
+      } else {
+        setPredictedPrice(undefined);
+        setConfidence(undefined);
+      }
+    }
+  }, [selectedProductId]);
+
+  useEffect(() => {
+    if (selectedProductId && predictedPrice) {
+      const calculatedProfit = predictionService.calculateProfit(selectedProductId, predictedPrice, estimatedSales);
+      const calculatedRevenue = predictionService.calculateRevenue(predictedPrice, estimatedSales);
+      setProfit(calculatedProfit);
+      setRevenue(calculatedRevenue);
+    } else {
+      setProfit(undefined);
+      setRevenue(undefined);
+    }
+  }, [selectedProductId, predictedPrice, estimatedSales]);
+
+  const handleProductSelect = (productId: string) => {
+    setSelectedProductId(productId);
+    setPredictedPrice(undefined);
+    setConfidence(undefined);
   };
 
-  const handleFactorChange = (factor: keyof PriceFactors, value: number) => {
-    setPriceFactors(prev => ({
-      ...prev,
-      [factor]: value,
-    }));
+  const handlePriceOverrideChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseFloat(e.target.value);
+    setPriceOverride(isNaN(value) ? undefined : value);
   };
 
-  const calculateOptimalPrice = () => {
-    if (!selectedProduct) return;
-
-    // Simple price optimization algorithm
-    const basePrice = selectedProduct.basePrice;
-    const cost = productCost;
-    
-    // Calculate weighted factors
-    const demandFactor = 1 - (priceFactors.demandCoefficient * 0.2); // Higher demand coefficient reduces price less
-    const competitorFactor = 1 - (priceFactors.competitorInfluence * 0.1); // Higher competitor influence reduces price more
-    const seasonalFactor = 1 + (priceFactors.seasonalityFactor * 0.15); // Higher seasonality increases price
-    const marginFactor = 1 + (priceFactors.marginOptimization * 0.25); // Higher margin optimization increases price
-    
-    // Calculate optimal price with minimum margin protection
-    const minMargin = 1.2; // Minimum 20% margin over cost
-    const calculatedPrice = basePrice * demandFactor * competitorFactor * seasonalFactor * marginFactor;
-    const minPrice = cost * minMargin;
-    
-    // Ensure price is at least the minimum margin above cost
-    const optimal = Math.max(calculatedPrice, minPrice);
-    setOptimizedPrice(optimal);
-    
-    // Also update manual price to match
-    setManualPrice(optimal);
-    
-    // Reset saved state
-    setPredictionSaved(false);
+  const handleSliderChange = (value: number[]) => {
+    setEstimatedSales(value[0]);
   };
 
-  const handleManualPriceChange = (value: string) => {
-    const price = parseFloat(value);
-    if (!isNaN(price) && price > 0) {
-      setManualPrice(price);
-      setPredictionSaved(false);
+  const handleGeneratePrediction = async () => {
+    if (!selectedProductId) return;
+
+    setLoading(true);
+    try {
+      const product = dataService.getProductById(selectedProductId);
+      if (!product) {
+        console.error("Product not found");
+        return;
+      }
+
+      const prediction: PricePrediction = {
+        productId: product.id,
+        basePrice: product.basePrice,
+        optimalPrice: priceOverride !== undefined ? priceOverride : product.basePrice * (1 + marginOptimization) * (1 + seasonalityFactor) - (competitorInfluence * 5),
+        confidence: 75 + (seasonalityFactor * 10),
+        factors: {
+          demandCoefficient,
+          competitorInfluence,
+          seasonalityFactor,
+          marginOptimization
+        },
+        productCost: productCost || product.cost
+      };
+
+      setPredictedPrice(prediction.optimalPrice);
+      setConfidence(prediction.confidence);
+    } catch (error) {
+      console.error("Prediction error:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleSavePrediction = async () => {
-    if (!selectedProduct || !manualPrice) return;
-    
-    // Create prediction object
-    const prediction: PricePrediction = {
-      productId: selectedProduct.id,
-      basePrice: selectedProduct.basePrice,
-      optimalPrice: manualPrice,
-      confidence: confidence,
-      factors: priceFactors,
-      productCost: productCost
-    };
-    
-    // Save prediction
-    const success = await savePrediction(selectedProduct.id, prediction);
-    
-    if (success) {
-      // Also save to local prediction service for immediate use
-      predictionService.savePrediction(prediction);
-      setPredictionSaved(true);
-      
-      toast({
-        title: "Price Saved",
-        description: `Optimal price of ${formatCurrency(manualPrice)} saved for ${selectedProduct.name}`,
-      });
+    if (!selectedProductId || !predictedPrice || !confidence) return;
+
+    setIsSaving(true);
+    try {
+      const product = dataService.getProductById(selectedProductId);
+      if (!product) {
+        console.error("Product not found");
+        return;
+      }
+
+      const prediction: PricePrediction = {
+        productId: product.id,
+        basePrice: product.basePrice,
+        optimalPrice: predictedPrice,
+        confidence: confidence,
+        factors: {
+          demandCoefficient,
+          competitorInfluence,
+          seasonalityFactor,
+          marginOptimization
+        },
+        productCost: productCost || product.cost
+      };
+
+      const saved = await savePrediction(selectedProductId, prediction);
+      if (saved) {
+        console.log("Prediction saved successfully");
+      } else {
+        console.error("Failed to save prediction");
+      }
+    } catch (error) {
+      console.error("Error saving prediction:", error);
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  // Calculate profit margin
-  const calculateMargin = (price: number) => {
-    if (!selectedProduct || price <= 0 || productCost <= 0) return 0;
-    return (price - productCost) / price * 100;
-  };
+  const priceElasticityData = React.useMemo(() => {
+    const basePrice = originalPrice || 50;
+    const elasticity = -1.5;
+    const data = [];
+    for (let price = basePrice * 0.5; price <= basePrice * 1.5; price += basePrice * 0.05) {
+      const priceChangePercent = (price - basePrice) / basePrice;
+      const demandChangePercent = priceChangePercent * elasticity;
+      const demand = estimatedSales * (1 + demandChangePercent);
+      data.push({ price, demand });
+    }
+    return data;
+  }, [originalPrice, estimatedSales]);
 
-  // Calculate estimated monthly sales at a given price
-  const estimateSales = (price: number) => {
-    if (!selectedProduct || price <= 0) return 0;
-    
-    // Simple demand curve: higher price = lower sales
-    const baseQuantity = 100; // Base monthly sales
-    const elasticity = 1.5; // Price elasticity
-    const basePrice = selectedProduct.basePrice;
-    
-    // Calculate quantity based on price elasticity
-    // Q = Q0 * (P/P0)^(-e) where e is elasticity
-    return Math.round(baseQuantity * Math.pow(basePrice / price, elasticity));
-  };
-
-  // Calculate estimated monthly profit
-  const estimateProfit = (price: number) => {
-    const sales = estimateSales(price);
-    return (price - productCost) * sales;
-  };
-
-  // Get optimal price or fallback to base price
-  const getOptimalPrice = () => {
-    return optimizedPrice || (selectedProduct ? selectedProduct.basePrice : 0);
-  };
-
-  // Get price points for comparison
-  const getPricePoints = () => {
-    if (!selectedProduct) return [];
-    
-    const optimal = getOptimalPrice();
-    const base = selectedProduct.basePrice;
-    const cost = productCost;
-    
+  const priceComparisonData = React.useMemo(() => {
+    const basePrice = originalPrice || 50;
+    const predicted = predictedPrice || basePrice * 1.1;
     return [
-      { name: 'Cost', value: cost },
-      { name: 'Base', value: base },
-      { name: 'Optimal', value: optimal },
+      { name: 'Original Price', price: basePrice },
+      { name: 'Predicted Price', price: predicted },
     ];
-  };
+  }, [originalPrice, predictedPrice]);
+
+  const profitProjectionData = React.useMemo(() => {
+    const basePrice = originalPrice || 50;
+    const predicted = predictedPrice || basePrice * 1.1;
+    const cost = productCost || basePrice * 0.5;
+    const data = [];
+    for (let price = basePrice * 0.7; price <= predicted * 1.2; price += basePrice * 0.05) {
+      const estimatedSales = 100;
+      const revenue = price * estimatedSales;
+      const profit = (price - cost) * estimatedSales;
+      data.push({ price, revenue, profit });
+    }
+    return data;
+  }, [originalPrice, predictedPrice, productCost]);
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       <Card>
         <CardHeader>
           <CardTitle>Price Prediction</CardTitle>
           <CardDescription>
-            Optimize pricing for your products using AI-driven analysis
+            Select a product to generate a price prediction.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="product-select">Select Product</Label>
-              <Select
-                value={selectedProduct?.id || ''}
-                onValueChange={handleProductChange}
-                disabled={loading || userAddedProducts.length === 0}
-              >
-                <SelectTrigger id="product-select">
-                  <SelectValue placeholder="Choose a product to optimize" />
-                </SelectTrigger>
-                <SelectContent>
-                  {userAddedProducts.map((product) => (
-                    <SelectItem key={product.id} value={product.id}>
-                      {product.name} ({formatCurrency(product.basePrice)})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {userAddedProducts.length === 0 && !loading && (
-                <p className="text-sm text-muted-foreground mt-2">
-                  No products found. Please add products in the Product Management tab.
-                </p>
-              )}
+        <CardContent className="grid gap-4">
+          <ProductSelect
+            products={products}
+            onProductSelect={handleProductSelect}
+            selectedProductId={selectedProductId}
+            placeholder={hasProducts ? "Select a product" : "No products available"}
+            showPrices={true}
+            predictedPrices={predictedPrices}
+          />
+          {selectedProductId && (
+            <div className="grid gap-2">
+              <Label htmlFor="priceOverride">
+                Price Override
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <HelpCircle className="h-4 w-4 inline-block ml-1" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      Manually set the price for prediction.
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </Label>
+              <Input
+                type="number"
+                id="priceOverride"
+                placeholder="Enter price"
+                value={priceOverride !== undefined ? priceOverride.toString() : ""}
+                onChange={handlePriceOverrideChange}
+              />
             </div>
-
-            {selectedProduct && (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label>Base Price</Label>
-                    <div className="text-2xl font-bold">
-                      {formatCurrency(selectedProduct.basePrice)}
-                    </div>
-                    <p className="text-sm text-muted-foreground">Current price</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Product Cost</Label>
-                    <div className="flex items-center space-x-2">
-                      <Input
-                        type="number"
-                        value={productCost}
-                        onChange={(e) => setProductCost(parseFloat(e.target.value) || 0)}
-                        className="text-lg font-medium"
-                      />
-                    </div>
-                    <p className="text-sm text-muted-foreground">Manufacturing/acquisition cost</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Current Margin</Label>
-                    <div className="text-2xl font-bold">
-                      {formatPercentage(calculateMargin(selectedProduct.basePrice))}
-                    </div>
-                    <p className="text-sm text-muted-foreground">Based on cost and base price</p>
-                  </div>
-                </div>
-
-                <Separator />
-
-                <Tabs value={activeTab} onValueChange={setActiveTab}>
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="automatic">Automatic Optimization</TabsTrigger>
-                    <TabsTrigger value="manual">Manual Adjustment</TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="automatic" className="space-y-6 pt-4">
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <div className="flex justify-between">
-                          <Label>Demand Sensitivity</Label>
-                          <span className="text-sm">{(priceFactors.demandCoefficient * 100).toFixed(0)}%</span>
-                        </div>
-                        <Slider
-                          value={[priceFactors.demandCoefficient * 100]}
-                          min={0}
-                          max={100}
-                          step={5}
-                          onValueChange={(value) => handleFactorChange('demandCoefficient', value[0] / 100)}
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          How sensitive are customers to price changes?
-                        </p>
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="flex justify-between">
-                          <Label>Competitor Influence</Label>
-                          <span className="text-sm">{(priceFactors.competitorInfluence * 100).toFixed(0)}%</span>
-                        </div>
-                        <Slider
-                          value={[priceFactors.competitorInfluence * 100]}
-                          min={0}
-                          max={100}
-                          step={5}
-                          onValueChange={(value) => handleFactorChange('competitorInfluence', value[0] / 100)}
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          How much do competitor prices affect your sales?
-                        </p>
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="flex justify-between">
-                          <Label>Seasonality Impact</Label>
-                          <span className="text-sm">{(priceFactors.seasonalityFactor * 100).toFixed(0)}%</span>
-                        </div>
-                        <Slider
-                          value={[priceFactors.seasonalityFactor * 100]}
-                          min={0}
-                          max={100}
-                          step={5}
-                          onValueChange={(value) => handleFactorChange('seasonalityFactor', value[0] / 100)}
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Is this product currently in high season?
-                        </p>
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="flex justify-between">
-                          <Label>Margin Optimization</Label>
-                          <span className="text-sm">{(priceFactors.marginOptimization * 100).toFixed(0)}%</span>
-                        </div>
-                        <Slider
-                          value={[priceFactors.marginOptimization * 100]}
-                          min={0}
-                          max={100}
-                          step={5}
-                          onValueChange={(value) => handleFactorChange('marginOptimization', value[0] / 100)}
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          How important is maximizing profit margin vs. volume?
-                        </p>
-                      </div>
-
-                      <Button 
-                        onClick={calculateOptimalPrice}
-                        className="w-full"
-                      >
-                        <LineChart className="mr-2 h-4 w-4" />
-                        Calculate Optimal Price
-                      </Button>
-                    </div>
-                  </TabsContent>
-                  <TabsContent value="manual" className="space-y-6 pt-4">
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="manual-price">Price</Label>
-                        <div className="flex items-center space-x-2">
-                          <DollarSign className="h-4 w-4 text-muted-foreground" />
-                          <Input
-                            id="manual-price"
-                            type="number"
-                            value={manualPrice || ''}
-                            onChange={(e) => handleManualPriceChange(e.target.value)}
-                            className="text-lg font-medium"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Profit Margin</Label>
-                        <div className="flex items-center space-x-2">
-                          <div className="text-xl font-bold">
-                            {formatPercentage(calculateMargin(manualPrice || 0))}
-                          </div>
-                          <Badge variant={calculateMargin(manualPrice || 0) > 30 ? "success" : "default"}>
-                            {calculateMargin(manualPrice || 0) > calculateMargin(selectedProduct.basePrice) 
-                              ? "Improved" 
-                              : "Reduced"}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          {calculateMargin(manualPrice || 0) > 30 
-                            ? "Healthy margin" 
-                            : "Consider increasing price to improve margin"}
-                        </p>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Estimated Monthly Sales</Label>
-                        <div className="text-xl font-bold">
-                          {estimateSales(manualPrice || 0).toLocaleString()} units
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          Based on price elasticity model
-                        </p>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Estimated Monthly Profit</Label>
-                        <div className="text-xl font-bold text-green-600">
-                          {formatCurrency(estimateProfit(manualPrice || 0))}
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          (Price - Cost) × Estimated Sales
-                        </p>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Prediction Confidence</Label>
-                        <div className="flex items-center space-x-2">
-                          <Slider
-                            value={[confidence]}
-                            min={50}
-                            max={100}
-                            step={5}
-                            onValueChange={(value) => setConfidence(value[0])}
-                          />
-                          <span className="w-12 text-right">{confidence}%</span>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          How confident are you in this price prediction?
-                        </p>
-                      </div>
-                    </div>
-                  </TabsContent>
-                </Tabs>
-
-                {optimizedPrice !== null && (
-                  <div className="bg-muted rounded-lg p-4 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-lg font-medium">Optimal Price</h3>
-                        <p className="text-sm text-muted-foreground">
-                          {optimizedPrice > selectedProduct.basePrice 
-                            ? "Price increase recommended" 
-                            : "Price decrease recommended"}
-                        </p>
-                      </div>
-                      <div className="text-3xl font-bold text-primary">
-                        {formatCurrency(optimizedPrice)}
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-3 gap-4 text-center">
-                      <div>
-                        <div className="text-sm font-medium text-muted-foreground">Change</div>
-                        <div className={`text-lg font-bold ${
-                          optimizedPrice > selectedProduct.basePrice ? "text-green-600" : "text-red-600"
-                        }`}>
-                          {formatPercentage((optimizedPrice / selectedProduct.basePrice - 1) * 100)}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-sm font-medium text-muted-foreground">Margin</div>
-                        <div className="text-lg font-bold">
-                          {formatPercentage(calculateMargin(optimizedPrice))}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-sm font-medium text-muted-foreground">Est. Profit</div>
-                        <div className="text-lg font-bold text-green-600">
-                          {formatCurrency(estimateProfit(optimizedPrice))}
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <Button 
-                      onClick={handleSavePrediction}
-                      className="w-full"
-                      disabled={predictionSaved}
-                    >
-                      {predictionSaved ? (
-                        <>
-                          <CheckCircle2 className="mr-2 h-4 w-4" />
-                          Price Saved
-                        </>
-                      ) : (
-                        <>
-                          <ArrowRight className="mr-2 h-4 w-4" />
-                          Save Price Prediction
-                        </>
-                      )}
-                    </Button>
-                    
-                    {predictionSaved && (
-                      <Alert className="bg-green-50 border-green-200">
-                        <CheckCircle2 className="h-4 w-4 text-green-600" />
-                        <AlertTitle className="text-green-800">Price prediction saved</AlertTitle>
-                        <AlertDescription className="text-green-700">
-                          This price will be used in reports and dashboards
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          )}
+          <Button 
+            type="submit" 
+            className="w-full" 
+            variant="default" 
+            disabled={loading}
+          >
+            {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+            Generate Prediction
+          </Button>
+          {predictedPrice !== undefined && (
+            <div className="grid gap-2">
+              <Label>Predicted Price</Label>
+              <Input
+                type="text"
+                value={`$${predictedPrice.toFixed(2)}`}
+                readOnly
+              />
+            </div>
+          )}
+          {confidence !== undefined && (
+            <div className="grid gap-2">
+              <Label>Confidence</Label>
+              <Input
+                type="text"
+                value={`${confidence.toFixed(2)}%`}
+                readOnly
+              />
+            </div>
+          )}
+          {predictedPrice !== undefined && (
+            <Button 
+              type="button" 
+              className="w-full" 
+              variant="secondary" 
+              disabled={isSaving} 
+              onClick={handleSavePrediction}
+            >
+              {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              Save Prediction
+            </Button>
+          )}
         </CardContent>
       </Card>
 
-      {selectedProduct && optimizedPrice && (
-        <div className="grid gap-6 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Price Elasticity Analysis</CardTitle>
-              <CardDescription>
-                Impact of price changes on sales volume and profit
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[300px]">
-                <PriceElasticityChart 
-                  basePrice={selectedProduct.basePrice}
-                  optimalPrice={optimizedPrice}
-                  productCost={productCost}
-                />
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader>
-              <CardTitle>Price Comparison</CardTitle>
-              <CardDescription>
-                Comparing cost, base, and optimal prices
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[300px]">
-                <PriceComparisonChart 
-                  pricePoints={getPricePoints()}
-                  margins={{
-                    base: calculateMargin(selectedProduct.basePrice),
-                    optimal: calculateMargin(optimizedPrice)
-                  }}
-                />
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card className="md:col-span-2">
-            <CardHeader>
-              <CardTitle>Profit Projection</CardTitle>
-              <CardDescription>
-                Projected profit at different price points
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[300px]">
-                <ProfitProjectionChart 
-                  basePrice={selectedProduct.basePrice}
-                  optimalPrice={optimizedPrice}
-                  productCost={productCost}
-                  productName={selectedProduct.name}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+      {selectedProductId && predictedPrice !== undefined && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Profit and Revenue Estimation</CardTitle>
+            <CardDescription>
+              Adjust the estimated sales to see the impact on profit and revenue.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="estimatedSales">Estimated Sales</Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <HelpCircle className="h-4 w-4 inline-block ml-1" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Adjust the slider to estimate the number of sales.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <Slider
+                defaultValue={[estimatedSales]}
+                max={200}
+                step={1}
+                onValueChange={handleSliderChange}
+                aria-label="Estimated Sales"
+              />
+              <Input
+                type="text"
+                value={estimatedSales.toString()}
+                readOnly
+              />
+            </div>
+            {profit !== undefined && revenue !== undefined && (
+              <>
+                <div className="grid gap-2">
+                  <Label>Estimated Profit</Label>
+                  <Input
+                    type="text"
+                    value={`$${profit.toFixed(2)}`}
+                    readOnly
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Estimated Revenue</Label>
+                  <Input
+                    type="text"
+                    value={`$${revenue.toFixed(2)}`}
+                    readOnly
+                  />
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {selectedProductId && predictedPrice !== undefined && (
+        <Tabs defaultValue="priceElasticity" className="w-full">
+          <TabsList>
+            <TabsTrigger value="priceElasticity">Price Elasticity</TabsTrigger>
+            <TabsTrigger value="priceComparison">Price Comparison</TabsTrigger>
+            <TabsTrigger value="profitProjection">Profit Projection</TabsTrigger>
+          </TabsList>
+          <TabsContent value="priceElasticity">
+            <PriceElasticityChart data={priceElasticityData} />
+          </TabsContent>
+          <TabsContent value="priceComparison">
+            <PriceComparisonChart data={priceComparisonData} />
+          </TabsContent>
+          <TabsContent value="profitProjection">
+            <ProfitProjectionChart data={profitProjectionData} />
+          </TabsContent>
+        </Tabs>
       )}
     </div>
   );

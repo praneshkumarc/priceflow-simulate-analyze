@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { dataService } from '@/services/dataService';
@@ -8,7 +7,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Json } from '@/integrations/supabase/types';
 
-// Define interfaces for Supabase table rows
 interface UserProduct {
   id: string;
   user_id: string;
@@ -46,16 +44,13 @@ export function useProductSelection() {
   const { toast } = useToast();
 
   useEffect(() => {
-    // Load sample products for new users to explore
     const sampleProducts = dataService.getAllProducts();
     setAllProducts(sampleProducts);
     
-    // Only fetch user products if user is logged in
     if (user) {
       fetchUserProducts();
       fetchUserPredictions();
     } else {
-      // If not logged in, set user products to empty
       setUserAddedProducts([]);
       setProductsWithPredictions([]);
       setPredictedPrices({});
@@ -79,7 +74,6 @@ export function useProductSelection() {
         });
         setUserAddedProducts([]);
       } else if (userProducts) {
-        // Transform to match Product interface
         const transformedProducts: Product[] = userProducts.map(item => ({
           id: item.id,
           name: item.name,
@@ -105,7 +99,6 @@ export function useProductSelection() {
 
   const fetchUserPredictions = async () => {
     try {
-      // Fetch predictions for the user's products
       const { data: predictions, error } = await supabase
         .from('user_price_predictions')
         .select('*') as { data: UserPricePrediction[] | null, error: any };
@@ -118,21 +111,18 @@ export function useProductSelection() {
       }
 
       if (predictions) {
-        // Create a map of predicted prices
         const priceMap: Record<string, number> = {};
         predictions.forEach(pred => {
           priceMap[pred.product_id] = Number(pred.optimal_price);
         });
         setPredictedPrices(priceMap);
 
-        // Filter products that have predictions
         if (userAddedProducts.length > 0) {
           const withPredictions = userAddedProducts.filter(p => 
             priceMap[p.id] !== undefined && priceMap[p.id] > 0
           );
           setProductsWithPredictions(withPredictions);
           
-          // Log for debugging
           console.log('Products with predictions:', withPredictions);
           console.log('Price map:', priceMap);
         }
@@ -147,7 +137,6 @@ export function useProductSelection() {
     }
   };
 
-  // Save price prediction to Supabase
   const savePricePredictionToSupabase = async (productId: string, prediction: PricePrediction) => {
     if (!user) {
       toast({
@@ -159,7 +148,6 @@ export function useProductSelection() {
     }
 
     try {
-      // Convert PriceFactors to a plain object compatible with Json type
       const factorsAsJson: Record<string, number> = {
         demandCoefficient: prediction.factors.demandCoefficient,
         competitorInfluence: prediction.factors.competitorInfluence,
@@ -167,13 +155,11 @@ export function useProductSelection() {
         marginOptimization: prediction.factors.marginOptimization
       };
 
-      // Since we can't directly query tables not in the Database type,
-      // we'll use a more generic approach with 'any' type annotations
       const { data: existingPred, error: fetchError } = await supabase
         .from('price_predictions' as any)
         .select('*')
         .eq('product_id', productId)
-        .maybeSingle();
+        .maybeSingle() as { data: any, error: any };
 
       if (fetchError) {
         console.error('Error fetching existing prediction:', fetchError);
@@ -183,7 +169,6 @@ export function useProductSelection() {
       let result;
       
       if (existingPred) {
-        // Update existing prediction
         result = await supabase
           .from('price_predictions' as any)
           .update({
@@ -196,7 +181,6 @@ export function useProductSelection() {
           })
           .eq('id', existingPred.id);
       } else {
-        // Insert new prediction
         result = await supabase
           .from('price_predictions' as any)
           .insert({
@@ -278,7 +262,6 @@ export function useProductSelection() {
       }
 
       if (data) {
-        // Transform the returned product to match Product interface
         const newProduct: Product = {
           id: data.id,
           name: data.name,
@@ -290,7 +273,6 @@ export function useProductSelection() {
           specifications: data.specifications,
         };
 
-        // Update local state
         setUserAddedProducts(prev => [...prev, newProduct]);
         
         toast({
@@ -324,7 +306,6 @@ export function useProductSelection() {
     }
 
     try {
-      // Convert PriceFactors to a plain object compatible with Json type
       const factorsAsJson: Record<string, number> = {
         demandCoefficient: prediction.factors.demandCoefficient,
         competitorInfluence: prediction.factors.competitorInfluence,
@@ -332,7 +313,6 @@ export function useProductSelection() {
         marginOptimization: prediction.factors.marginOptimization
       };
 
-      // Check if prediction already exists
       const { data: existing, error: fetchError } = await supabase
         .from('user_price_predictions')
         .select('*')
@@ -347,7 +327,6 @@ export function useProductSelection() {
       let result;
       
       if (existing) {
-        // Update existing prediction
         result = await supabase
           .from('user_price_predictions')
           .update({
@@ -359,7 +338,6 @@ export function useProductSelection() {
           })
           .eq('id', existing.id);
       } else {
-        // Insert new prediction
         result = await supabase
           .from('user_price_predictions')
           .insert({
@@ -382,14 +360,11 @@ export function useProductSelection() {
         return false;
       }
 
-      // Also save to the new price_predictions table
       await savePricePredictionToSupabase(productId, prediction);
 
-      // Update local state
       const updatedPrices = { ...predictedPrices, [productId]: prediction.optimalPrice };
       setPredictedPrices(updatedPrices);
       
-      // Update products with predictions
       await fetchUserPredictions();
       
       toast({
@@ -409,7 +384,6 @@ export function useProductSelection() {
     }
   };
 
-  // Function to save uploaded dataset to Supabase
   const saveUploadedDataset = async (name: string, fileData: any, datasetType: string, rowCount: number, columnCount: number) => {
     if (!user) {
       toast({
@@ -421,7 +395,6 @@ export function useProductSelection() {
     }
 
     try {
-      // Using type assertion since the table might not be in the Database type
       const { error } = await supabase
         .from('uploaded_datasets' as any)
         .insert({

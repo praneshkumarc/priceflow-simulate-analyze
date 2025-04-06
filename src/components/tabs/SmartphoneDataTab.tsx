@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,7 +32,7 @@ const SmartphoneDataTab: React.FC = () => {
   };
   
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       <Card className="bg-white shadow-sm">
         <CardHeader>
           <CardTitle className="text-2xl">Smartphone Price Analysis</CardTitle>

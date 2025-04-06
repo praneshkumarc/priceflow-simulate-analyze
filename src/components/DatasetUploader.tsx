@@ -1,20 +1,13 @@
-
-import React, { useState, useRef } from 'react';
+import React, { useState, useCallback } from 'react';
+import { useDropzone } from 'react-dropzone';
+import { Loader2, Upload, File, CheckCircle, AlertCircle } from 'lucide-react';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Progress } from '@/components/ui/progress';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle, CheckCircle2, Upload } from 'lucide-react';
-import Papa from 'papaparse';
-import { SmartphoneInputData } from '@/types';
-import { dataService } from '@/services/dataService';
-import { useAuth } from '@/contexts/AuthContext';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { useDatasetUploader } from '@/utils/datasetUploader';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import Papa from 'papaparse';
 
 interface DatasetUploaderProps {
   onDatasetProcessed?: (data: any[]) => void;
@@ -22,90 +15,42 @@ interface DatasetUploaderProps {
 
 const DatasetUploader: React.FC<DatasetUploaderProps> = ({ onDatasetProcessed }) => {
   const [file, setFile] = useState<File | null>(null);
+  const [parsedData, setParsedData] = useState<any[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [uploadSuccess, setUploadSuccess] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [parsedData, setParsedData] = useState<SmartphoneInputData[]>([]);
-  const [datasetName, setDatasetName] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const { user } = useAuth();
+  const [datasetType, setDatasetType] = useState('');
   const { toast } = useToast();
-  const { uploadDataset } = useDatasetUploader();
+  const { user } = useAuth();
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      setFile(selectedFile);
-      setDatasetName(selectedFile.name.split('.')[0]); // Set default name from filename
-      setUploadSuccess(false);
-      setUploadError(null);
-      setParsedData([]);
-    }
-  };
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    const droppedFile = acceptedFiles[0];
+    setFile(droppedFile);
 
-  const parseCSV = (file: File): Promise<SmartphoneInputData[]> => {
-    return new Promise((resolve, reject) => {
-      Papa.parse(file, {
-        header: true,
-        dynamicTyping: true,
-        complete: (results) => {
-          try {
-            const data = results.data as any[];
-            // Transform the data to match SmartphoneInputData structure
-            const transformedData: SmartphoneInputData[] = data
-              .filter(row => row.Brand && row.Model) // Filter out empty rows
-              .map(row => {
-                // Handle nested specifications
-                const specs = {
-                  Storage: row.Storage || '',
-                  RAM: row.RAM || '',
-                  "Processor Type": row["Processor Type"] || '',
-                  "Display Hz": row["Display Hz"] || 60,
-                  "Camera MP": row["Camera MP"] || 0,
-                  "Battery Capacity": row["Battery Capacity"] || '',
-                  OS: row.OS || undefined,
-                  Color: row.Color || undefined
-                };
-
-                return {
-                  Brand: row.Brand,
-                  Model: row.Model,
-                  Price: row.Price,
-                  "Original Price": row["Original Price"] || row.Price,
-                  Stock: row.Stock || 0,
-                  Category: row.Category || 'Smartphones',
-                  Specifications: specs,
-                  "Month of Sale": row["Month of Sale"],
-                  "Seasonal Effect": row["Seasonal Effect"],
-                  "Competitor Price": row["Competitor Price"],
-                  "Demand Level": row["Demand Level"],
-                  year_of_sale: row.year_of_sale || new Date().getFullYear()
-                };
-              });
-            resolve(transformedData);
-          } catch (error) {
-            reject(error);
-          }
-        },
-        error: (error) => {
-          reject(error);
-        }
-      });
+    Papa.parse(droppedFile, {
+      header: true,
+      dynamicTyping: true,
+      complete: (results) => {
+        setParsedData(results.data);
+      },
+      error: (error) => {
+        console.error('Error parsing CSV:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to parse CSV file',
+          variant: 'destructive',
+        });
+      },
     });
-  };
+  }, [toast]);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      'text/csv': ['.csv'],
+    },
+    maxFiles: 1,
+  });
 
   const handleUpload = async () => {
-    if (!file) {
-      setUploadError('Please select a file first');
-      return;
-    }
-
-    if (!datasetName.trim()) {
-      setUploadError('Please provide a dataset name');
-      return;
-    }
-
     if (!user) {
       toast({
         title: 'Authentication Required',
@@ -115,50 +60,65 @@ const DatasetUploader: React.FC<DatasetUploaderProps> = ({ onDatasetProcessed })
       return;
     }
 
+    if (!file) {
+      toast({
+        title: 'Error',
+        description: 'Please select a file to upload',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!datasetType) {
+      toast({
+        title: 'Error',
+        description: 'Please select a dataset type',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setUploading(true);
-    setProgress(10);
-    setUploadError(null);
 
     try {
-      // Parse the CSV file
-      setProgress(30);
-      const parsedData = await parseCSV(file);
-      setParsedData(parsedData);
-      setProgress(60);
+      const rowCount = parsedData.length;
+      const columnCount = rowCount > 0 ? Object.keys(parsedData[0]).length : 0;
 
-      // Save to dataService
-      dataService.updateDataset(parsedData);
-      setProgress(80);
+      // Using type assertion since the table might not be in the Database type
+      const { error } = await supabase
+        .from('uploaded_datasets' as any)
+        .insert({
+          user_id: user.id,
+          name: file.name,
+          file_data: parsedData,
+          dataset_type: datasetType,
+          row_count: rowCount,
+          column_count: columnCount
+        } as any);
 
-      // Save to Supabase using the utility function
-      const result = await uploadDataset(datasetName, parsedData, 'smartphone_data');
-      
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to upload dataset');
+      if (error) {
+        console.error('Error saving dataset:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to save dataset',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Success',
+          description: 'Dataset saved successfully',
+        });
+
+        // Notify parent component that dataset has been processed
+        if (onDatasetProcessed) {
+          onDatasetProcessed(parsedData);
+        }
       }
-
-      setProgress(100);
-      setUploadSuccess(true);
+    } catch (error) {
+      console.error('Exception saving dataset:', error);
       toast({
-        title: 'Success',
-        description: `Dataset "${datasetName}" uploaded successfully with ${parsedData.length} records`,
-      });
-
-      // Reset file input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-
-      // If a callback was provided, call it with the parsed data
-      if (onDatasetProcessed) {
-        onDatasetProcessed(parsedData);
-      }
-    } catch (error: any) {
-      console.error('Upload error:', error);
-      setUploadError(error.message || 'Failed to upload dataset');
-      toast({
-        title: 'Upload Failed',
-        description: error.message || 'Failed to upload dataset',
+        title: 'Error',
+        description: 'Failed to save dataset',
         variant: 'destructive',
       });
     } finally {
@@ -166,128 +126,53 @@ const DatasetUploader: React.FC<DatasetUploaderProps> = ({ onDatasetProcessed })
     }
   };
 
-  const resetForm = () => {
-    setFile(null);
-    setDatasetName('');
-    setUploadSuccess(false);
-    setUploadError(null);
-    setParsedData([]);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-
   return (
-    <Card className="w-full">
+    <Card>
       <CardHeader>
         <CardTitle>Upload Dataset</CardTitle>
-        <CardDescription>
-          Upload your smartphone sales data in CSV format to analyze pricing trends
-        </CardDescription>
       </CardHeader>
       <CardContent>
-        <Tabs defaultValue="upload" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="upload">Upload</TabsTrigger>
-            <TabsTrigger value="preview" disabled={parsedData.length === 0}>
-              Preview Data
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="upload" className="space-y-4">
-            <div className="grid w-full gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="dataset-name">Dataset Name</Label>
-                <Input
-                  id="dataset-name"
-                  placeholder="Enter a name for this dataset"
-                  value={datasetName}
-                  onChange={(e) => setDatasetName(e.target.value)}
-                  disabled={uploading}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="file-upload">CSV File</Label>
-                <Input
-                  ref={fileInputRef}
-                  id="file-upload"
-                  type="file"
-                  accept=".csv"
-                  onChange={handleFileChange}
-                  disabled={uploading}
-                />
-                <p className="text-sm text-muted-foreground">
-                  Upload a CSV file with smartphone data. Required columns: Brand, Model, Price
-                </p>
-              </div>
-              {uploading && (
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Uploading...</span>
-                    <span>{progress}%</span>
-                  </div>
-                  <Progress value={progress} className="h-2" />
-                </div>
-              )}
-              {uploadSuccess && (
-                <Alert className="bg-green-50 border-green-200">
-                  <CheckCircle2 className="h-4 w-4 text-green-600" />
-                  <AlertTitle className="text-green-800">Success</AlertTitle>
-                  <AlertDescription className="text-green-700">
-                    Dataset uploaded successfully with {parsedData.length} records
-                  </AlertDescription>
-                </Alert>
-              )}
-              {uploadError && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>Error</AlertTitle>
-                  <AlertDescription>{uploadError}</AlertDescription>
-                </Alert>
+        <div {...getRootProps()} className="flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-md cursor-pointer">
+          <input {...getInputProps()} />
+          {file ? (
+            <div className="flex items-center space-x-2">
+              <File className="h-4 w-4 text-green-500" />
+              <span>{file.name}</span>
+              <CheckCircle className="h-4 w-4 text-green-500" />
+            </div>
+          ) : (
+            <div className="flex flex-col items-center">
+              <Upload className="h-6 w-6 text-muted-foreground" />
+              {isDragActive ? (
+                <p>Drop the files here ...</p>
+              ) : (
+                <p>Drag 'n' drop some files here, or click to select files</p>
               )}
             </div>
-          </TabsContent>
-          <TabsContent value="preview">
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Brand</TableHead>
-                    <TableHead>Model</TableHead>
-                    <TableHead>Price</TableHead>
-                    <TableHead>Stock</TableHead>
-                    <TableHead>Storage</TableHead>
-                    <TableHead>RAM</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {parsedData.slice(0, 5).map((row, index) => (
-                    <TableRow key={index}>
-                      <TableCell>{row.Brand}</TableCell>
-                      <TableCell>{row.Model}</TableCell>
-                      <TableCell>{row.Price}</TableCell>
-                      <TableCell>{row.Stock}</TableCell>
-                      <TableCell>{row.Specifications.Storage}</TableCell>
-                      <TableCell>{row.Specifications.RAM}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              {parsedData.length > 5 && (
-                <div className="py-2 px-4 text-sm text-muted-foreground">
-                  Showing 5 of {parsedData.length} records
-                </div>
-              )}
-            </div>
-          </TabsContent>
-        </Tabs>
+          )}
+        </div>
+        <Select onValueChange={setDatasetType}>
+          <SelectTrigger className="w-full mt-4">
+            <SelectValue placeholder="Select dataset type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="sales">Sales Data</SelectItem>
+            <SelectItem value="product">Product Data</SelectItem>
+            <SelectItem value="smartphone">Smartphone Data</SelectItem>
+            <SelectItem value="other">Other</SelectItem>
+          </SelectContent>
+        </Select>
       </CardContent>
-      <CardFooter className="flex justify-between">
-        <Button variant="outline" onClick={resetForm} disabled={uploading}>
-          Reset
-        </Button>
-        <Button onClick={handleUpload} disabled={uploading || !file}>
-          <Upload className="mr-2 h-4 w-4" />
-          {uploading ? 'Uploading...' : 'Upload Dataset'}
+      <CardFooter>
+        <Button onClick={handleUpload} disabled={uploading} className="w-full">
+          {uploading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Uploading...
+            </>
+          ) : (
+            'Upload'
+          )}
         </Button>
       </CardFooter>
     </Card>

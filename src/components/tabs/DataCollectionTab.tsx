@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { dataService } from '@/services/dataService';
@@ -10,14 +9,13 @@ import MetricCard from '../MetricCard';
 import { Database, ShoppingBag, Package, LineChart } from 'lucide-react';
 import DatasetUploader from '../DatasetUploader';
 
-const DataCollectionTab: React.FC = () => {
+const DataCollectionTab = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [sales, setSales] = useState<ProductSale[]>([]);
   const [loading, setLoading] = useState(true);
   const [topSellers, setTopSellers] = useState<{ product: Product; revenue: number; units: number }[]>([]);
   
   useEffect(() => {
-    // Load products and sales data
     const fetchData = () => {
       try {
         const allProducts = dataService.getAllProducts();
@@ -38,10 +36,7 @@ const DataCollectionTab: React.FC = () => {
   }, []);
   
   const handleDatasetProcessed = (data: any[]) => {
-    // Update the dataService with the new products
     dataService.updateProducts(data);
-    
-    // Refresh the UI with the new data
     setProducts(dataService.getAllProducts());
     setSales(dataService.getAllSales());
     setTopSellers(dataService.getTopSellingProducts(5));
@@ -52,7 +47,6 @@ const DataCollectionTab: React.FC = () => {
   const totalRevenue = sales.reduce((sum, sale) => sum + (sale.price * sale.quantity), 0);
   const uniqueCategories = [...new Set(products.map(p => p.category))].length;
   
-  // Prepare data for the top seller chart
   const chartData = topSellers.map(item => ({
     name: item.product.name,
     revenue: item.revenue,
@@ -60,7 +54,7 @@ const DataCollectionTab: React.FC = () => {
   }));
   
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       <DatasetUploader onDatasetProcessed={handleDatasetProcessed} />
       
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
