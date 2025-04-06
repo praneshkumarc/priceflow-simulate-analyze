@@ -1,3 +1,4 @@
+
 // Product Data Types
 export interface Product {
   id: string;
@@ -140,4 +141,30 @@ export interface SmartphoneInputData {
   "Competitor Price"?: number;
   "Demand Level"?: number;
   year_of_sale?: number; // Added this property
+}
+
+// Resell feature types
+export type PhoneCondition = 'Excellent' | 'Good' | 'Fair' | 'Poor' | 'Custom';
+
+export interface ResellSubmission {
+  phoneModel: string;
+  purchaseYear: number;
+  condition: PhoneCondition;
+  customConditionDescription?: string;
+  desiredPrice: number;
+  billFile?: File;
+}
+
+export interface ResellCalculation {
+  basePrice: number;
+  yearDepreciation: number;
+  demandAdjustment: number;
+  conditionDepreciation: number;
+  inflationAdjustment: number;
+  calculatedPrice: number;
+  withinRange: boolean;
+  percentageDifference: number;
+  customerPrice: number;
+  decision: 'Approved' | 'Counteroffer' | 'Rejected';
+  message: string;
 }
