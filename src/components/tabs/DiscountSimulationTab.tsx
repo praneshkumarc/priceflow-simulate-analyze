@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
@@ -39,31 +38,25 @@ const DiscountSimulationTab: React.FC = () => {
   const [selectedModel, setSelectedModel] = useState<string>('');
   const { toast } = useToast();
   
-  // Simulation params
   const [discountRate, setDiscountRate] = useState<number>(0.1); // 10% default
   const [expectedDemandIncrease, setExpectedDemandIncrease] = useState<number>(1.2); // 20% default
   
-  // For comparison
   const [compareMode, setCompareMode] = useState(false);
   const { user } = useAuth();
   
   useEffect(() => {
-    // Make sure we have the latest predictions
     if (user) {
       refreshProducts();
     }
     
-    // Extract unique models from the dataset
     const dataset = dataService.getDataset();
     if (dataset && dataset.length > 0) {
       const uniqueModels = [...new Set(dataset.map(item => item.Model))];
       setModels(uniqueModels);
       
-      // If there's at least one model and no model is selected yet, select the first one
       if (uniqueModels.length > 0 && !selectedModel) {
         setSelectedModel(uniqueModels[0]);
         
-        // Check if there's a prediction for this model
         const modelId = `model-${uniqueModels[0]}`;
         if (predictionService.hasPrediction(modelId)) {
           setSelectedProductId(modelId);
@@ -71,7 +64,6 @@ const DiscountSimulationTab: React.FC = () => {
       }
     }
     
-    // Get model-based predictions directly from predictionService
     const allPredictions = predictionService.getAllPredictedPrices();
     console.log("All predicted prices:", allPredictions);
     
@@ -79,13 +71,11 @@ const DiscountSimulationTab: React.FC = () => {
   }, [user]);
   
   useEffect(() => {
-    // Get direct products with predictions from predictionService
     const allProducts = dataService.getAllProducts();
     const predictedProductIds = predictionService.getPredictedProductIds();
     
     console.log("Predicted product IDs:", predictedProductIds);
     
-    // Check if we have model-based predictions
     const modelPredictions = Object.keys(predictionService.getAllPredictedPrices())
       .filter(id => id.startsWith('model-'))
       .map(id => ({
@@ -101,15 +91,12 @@ const DiscountSimulationTab: React.FC = () => {
     
     console.log("Model predictions:", modelPredictions);
     
-    // If we have model predictions but no products with predictions yet
     if (modelPredictions.length > 0 && productsWithPredictions.length === 0) {
-      // Select the first model prediction
       setSelectedProductId(modelPredictions[0].id);
       setSelectedProduct(modelPredictions[0]);
       setSelectedModel(modelPredictions[0].specifications?.model || '');
     }
     
-    // Check if there are any predictions available
     if (predictedProductIds.length === 0 && modelPredictions.length === 0) {
       toast({
         title: "No predictions available",
@@ -125,11 +112,10 @@ const DiscountSimulationTab: React.FC = () => {
       if (predictionService.hasPrediction(productId)) {
         setSelectedProductId(productId);
         
-        // Create a product object for the model
         const modelProduct = {
           id: productId,
           name: selectedModel,
-          basePrice: 0, // Will be updated from prediction
+          basePrice: 0,
           category: 'Smartphone',
           inventory: 0,
           cost: 0,
@@ -145,7 +131,6 @@ const DiscountSimulationTab: React.FC = () => {
   
   useEffect(() => {
     if (selectedProductId) {
-      // If it's a model-based prediction
       if (selectedProductId.startsWith('model-')) {
         const modelName = selectedProductId.replace('model-', '');
         const modelProduct = {
@@ -160,7 +145,6 @@ const DiscountSimulationTab: React.FC = () => {
         };
         setSelectedProduct(modelProduct);
       } else {
-        // Find the product in the user's products
         const product = productsWithPredictions.find(p => p.id === selectedProductId);
         if (product) {
           setSelectedProduct(product);
@@ -174,11 +158,11 @@ const DiscountSimulationTab: React.FC = () => {
     
     const today = new Date();
     const futureDate = new Date();
-    futureDate.setDate(today.getDate() + 30); // 30 days simulation
+    futureDate.setDate(today.getDate() + 30);
     
-    // Use predictedPrice from predictionService if available
     const predictedPrice = predictionService.getPredictedPrice(selectedProductId);
     const originalPrice = predictedPrice || selectedProduct.basePrice;
+    const originalCost = selectedProduct.cost || originalPrice * 0.5;
     
     console.log("Running simulation with price:", originalPrice);
     
@@ -192,9 +176,9 @@ const DiscountSimulationTab: React.FC = () => {
     
     try {
       const result = dataService.simulateDiscount(params, originalPrice);
+      result.productCost = originalCost;
       setSimulations(prev => [...prev, result]);
       
-      // If this is the first simulation, automatically enable compare mode
       if (simulations.length === 0) {
         setCompareMode(true);
       }
@@ -225,27 +209,35 @@ const DiscountSimulationTab: React.FC = () => {
   const generateComparisonData = () => {
     if (!selectedProduct || simulations.length === 0) return [];
     
-    // Use predictedPrice if available, otherwise use basePrice
     const originalPrice = predictedPrices[selectedProductId] || selectedProduct.basePrice;
-    const originalProfit = (originalPrice - selectedProduct.cost) * 100; // Assume 100 units
+    const originalCost = selectedProduct.cost || originalPrice * 0.5;
+    
+    const baselineUnits = 100;
+    const baselineRevenue = originalPrice * baselineUnits;
+    const baselineProfit = (originalPrice - originalCost) * baselineUnits;
     
     const comparisonData = simulations.map((sim, index) => {
+      const simulationUnits = sim.expectedSales;
+      const simulationRevenue = sim.discountedPrice * simulationUnits;
+      const simulationProfit = (sim.discountedPrice - (sim.productCost || originalCost)) * simulationUnits;
+      
       return {
         name: `Scenario ${index + 1}`,
         discount: formatPercentage(1 - (sim.discountedPrice / sim.originalPrice)),
-        revenue: sim.expectedRevenue,
-        profit: sim.expectedProfit,
-        price: sim.discountedPrice
+        revenue: simulationRevenue,
+        profit: simulationProfit,
+        price: sim.discountedPrice,
+        units: simulationUnits
       };
     });
     
-    // Add the baseline scenario (no discount)
     comparisonData.unshift({
       name: 'No Discount',
       discount: '0%',
-      revenue: originalPrice * 100, // Assume 100 units as baseline
-      profit: originalProfit,
-      price: originalPrice
+      revenue: baselineRevenue,
+      profit: baselineProfit,
+      price: originalPrice,
+      units: baselineUnits
     });
     
     return comparisonData;
@@ -483,6 +475,7 @@ const DiscountSimulationTab: React.FC = () => {
                       <th className="text-left pb-2">Scenario</th>
                       <th className="text-left pb-2">Discount</th>
                       <th className="text-left pb-2">Price</th>
+                      <th className="text-left pb-2">Units</th>
                       <th className="text-left pb-2">Revenue</th>
                       <th className="text-left pb-2">Profit</th>
                     </tr>
@@ -493,6 +486,7 @@ const DiscountSimulationTab: React.FC = () => {
                         <td className="py-2">{scenario.name}</td>
                         <td className="py-2">{scenario.discount}</td>
                         <td className="py-2">{formatCurrency(scenario.price)}</td>
+                        <td className="py-2">{formatNumber(scenario.units)}</td>
                         <td className="py-2">{formatCurrency(scenario.revenue)}</td>
                         <td className="py-2">{formatCurrency(scenario.profit)}</td>
                       </tr>
