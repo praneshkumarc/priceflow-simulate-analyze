@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
@@ -433,7 +434,13 @@ const DiscountSimulationTab: React.FC = () => {
                   </div>
                   <div className="border p-3 rounded-md">
                     <div className="text-xs text-muted-foreground">Expected Profit</div>
-                    <div className="text-lg font-bold">{formatCurrency(latestSimulation.expectedProfit)}</div>
+                    <div className="text-lg font-bold">
+                      {formatCurrency(
+                        (latestSimulation.productCost !== undefined)
+                          ? (latestSimulation.discountedPrice - latestSimulation.productCost) * latestSimulation.expectedSales
+                          : latestSimulation.expectedProfit
+                      )}
+                    </div>
                   </div>
                 </div>
                 

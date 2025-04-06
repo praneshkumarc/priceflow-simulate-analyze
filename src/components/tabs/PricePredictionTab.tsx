@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
@@ -315,20 +316,20 @@ const PricePredictionTab: React.FC = () => {
                   />
                   
                   <Button 
-                    className="w-full mt-2" 
+                    className="w-full mt-2 flex justify-center items-center px-2 py-2 sm:py-2 text-xs sm:text-sm md:text-base" 
                     variant="outline"
                     onClick={generateOptimalPrice}
                     disabled={!selectedProductId || generatingOptimalPrice}
                   >
                     {generatingOptimalPrice ? (
                       <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Generating...
+                        <Loader2 className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
+                        <span className="whitespace-nowrap text-xs sm:text-sm">Generating...</span>
                       </>
                     ) : (
                       <>
-                        <Cpu className="mr-2 h-4 w-4" />
-                        Generate Optimal Price
+                        <Cpu className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+                        <span className="whitespace-nowrap text-xs sm:text-sm">Generate Optimal Price</span>
                       </>
                     )}
                   </Button>
@@ -337,18 +338,18 @@ const PricePredictionTab: React.FC = () => {
               
               {selectedProduct && prediction && (
                 <div className="space-y-4 mt-4">
-                  <div className="flex justify-between">
-                    <div>
-                      <div className="text-sm font-medium text-muted-foreground">Base Price</div>
-                      <div className="text-2xl font-bold">{formatCurrency(selectedProduct.basePrice)}</div>
+                  <div className="flex flex-col sm:flex-row justify-between gap-2">
+                    <div className="border p-2 sm:p-3 rounded-md flex-1">
+                      <div className="text-xs sm:text-sm font-medium text-muted-foreground">Base Price</div>
+                      <div className="text-lg sm:text-2xl font-bold">{formatCurrency(selectedProduct.basePrice)}</div>
                     </div>
-                    <div>
-                      <div className="text-sm font-medium text-muted-foreground">Optimal Price</div>
-                      <div className="text-2xl font-bold text-app-blue-500">{formatCurrency(prediction.optimalPrice)}</div>
+                    <div className="border p-2 sm:p-3 rounded-md flex-1">
+                      <div className="text-xs sm:text-sm font-medium text-muted-foreground">Optimal Price</div>
+                      <div className="text-lg sm:text-2xl font-bold text-app-blue-500">{formatCurrency(prediction.optimalPrice)}</div>
                     </div>
-                    <div>
-                      <div className="text-sm font-medium text-muted-foreground">Confidence</div>
-                      <div className="text-2xl font-bold">{prediction.confidence}%</div>
+                    <div className="border p-2 sm:p-3 rounded-md flex-1">
+                      <div className="text-xs sm:text-sm font-medium text-muted-foreground">Confidence</div>
+                      <div className="text-lg sm:text-2xl font-bold">{prediction.confidence}%</div>
                     </div>
                   </div>
                 </div>
@@ -381,7 +382,7 @@ const PricePredictionTab: React.FC = () => {
                 </Select>
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="basePrice">Base Price ($)</Label>
                   <Input
@@ -412,19 +413,19 @@ const PricePredictionTab: React.FC = () => {
               </div>
               
               <Button 
-                className="w-full" 
+                className="w-full flex justify-center items-center px-2 py-2 sm:py-2 text-xs sm:text-sm md:text-base" 
                 onClick={predictPriceWithKNN}
                 disabled={processingFeatures || !selectedModel || basePrice <= 0}
               >
                 {processingFeatures ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Extracting Features...
+                    <Loader2 className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
+                    <span className="whitespace-nowrap text-xs sm:text-sm">Extracting Features...</span>
                   </>
                 ) : (
                   <>
-                    <Cpu className="mr-2 h-4 w-4" />
-                    Predict Price with KNN
+                    <Cpu className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="whitespace-nowrap text-xs sm:text-sm">Predict Price with KNN</span>
                   </>
                 )}
               </Button>
@@ -433,7 +434,7 @@ const PricePredictionTab: React.FC = () => {
                 <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-md">
                   <div className="text-center">
                     <div className="text-sm font-medium text-green-800">KNN Predicted Price</div>
-                    <div className="text-3xl font-bold text-green-600">
+                    <div className="text-xl sm:text-3xl font-bold text-green-600">
                       {formatCurrency(knnPredictedPrice)}
                     </div>
                     <div className="text-xs text-green-600 mt-1">
@@ -455,7 +456,7 @@ const PricePredictionTab: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="grid gap-6 md:grid-cols-2">
-              <div className="h-[300px]">
+              <div className="h-[250px] md:h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <RadarChart outerRadius={90} width={400} height={250} data={radarData}>
                     <PolarGrid />
@@ -474,7 +475,7 @@ const PricePredictionTab: React.FC = () => {
               </div>
               
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <div className="text-sm font-medium">Demand Coefficient</div>
                     <div className="text-base">
@@ -503,7 +504,7 @@ const PricePredictionTab: React.FC = () => {
                 
                 <div className="mt-4">
                   <div className="text-sm font-medium mb-2">Price Recommendations</div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="border p-3 rounded-md">
                       <div className="text-xs text-muted-foreground">Standard Model</div>
                       <div className="text-lg font-bold text-app-blue-500">
@@ -534,7 +535,7 @@ const PricePredictionTab: React.FC = () => {
               <CardDescription>Your price vs. competitors</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-[300px]">
+              <div className="h-[250px] md:h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={competitorPrices}>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -567,7 +568,7 @@ const PricePredictionTab: React.FC = () => {
               <CardDescription>Estimated profit at different price points</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-[300px]">
+              <div className="h-[250px] md:h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={profitCurveData}>
                     <CartesianGrid strokeDasharray="3 3" />
