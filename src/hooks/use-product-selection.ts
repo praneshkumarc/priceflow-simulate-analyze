@@ -147,6 +147,90 @@ export function useProductSelection() {
     }
   };
 
+  // Save price prediction to Supabase
+  const savePricePredictionToSupabase = async (productId: string, prediction: PricePrediction) => {
+    if (!user) {
+      toast({
+        title: 'Authentication Required',
+        description: 'Please login to save predictions to the database',
+        variant: 'destructive',
+      });
+      return false;
+    }
+
+    try {
+      // Convert PriceFactors to a plain object compatible with Json type
+      const factorsAsJson: Record<string, number> = {
+        demandCoefficient: prediction.factors.demandCoefficient,
+        competitorInfluence: prediction.factors.competitorInfluence,
+        seasonalityFactor: prediction.factors.seasonalityFactor,
+        marginOptimization: prediction.factors.marginOptimization
+      };
+
+      // Check if prediction already exists in price_predictions table
+      const { data: existingPred } = await supabase
+        .from('price_predictions')
+        .select('*')
+        .eq('product_id', productId)
+        .maybeSingle();
+
+      let result;
+      
+      if (existingPred) {
+        // Update existing prediction
+        result = await supabase
+          .from('price_predictions')
+          .update({
+            base_price: prediction.basePrice,
+            optimal_price: prediction.optimalPrice,
+            confidence: prediction.confidence,
+            factors: factorsAsJson,
+            cost_price: prediction.productCost,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', existingPred.id);
+      } else {
+        // Insert new prediction
+        result = await supabase
+          .from('price_predictions')
+          .insert({
+            user_id: user.id,
+            product_id: productId,
+            base_price: prediction.basePrice,
+            optimal_price: prediction.optimalPrice,
+            confidence: prediction.confidence,
+            factors: factorsAsJson,
+            cost_price: prediction.productCost
+          });
+      }
+
+      if (result.error) {
+        console.error('Error saving prediction to price_predictions:', result.error);
+        toast({
+          title: 'Error',
+          description: 'Failed to save prediction to database',
+          variant: 'destructive',
+        });
+        return false;
+      }
+      
+      toast({
+        title: 'Success',
+        description: 'Price prediction saved to database',
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('Exception saving prediction to price_predictions:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to save prediction to database',
+        variant: 'destructive',
+      });
+      return false;
+    }
+  };
+
   const refreshProducts = async () => {
     if (user) {
       await fetchUserProducts();
@@ -287,6 +371,9 @@ export function useProductSelection() {
         return false;
       }
 
+      // Also save to the new price_predictions table
+      await savePricePredictionToSupabase(productId, prediction);
+
       // Update local state
       const updatedPrices = { ...predictedPrices, [productId]: prediction.optimalPrice };
       setPredictedPrices(updatedPrices);
@@ -311,6 +398,56 @@ export function useProductSelection() {
     }
   };
 
+  // Function to save uploaded dataset to Supabase
+  const saveUploadedDataset = async (name: string, fileData: any, datasetType: string, rowCount: number, columnCount: number) => {
+    if (!user) {
+      toast({
+        title: 'Authentication Required',
+        description: 'Please login to save datasets',
+        variant: 'destructive',
+      });
+      return false;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('uploaded_datasets')
+        .insert({
+          user_id: user.id,
+          name,
+          file_data: fileData,
+          dataset_type: datasetType,
+          row_count: rowCount,
+          column_count: columnCount
+        });
+
+      if (error) {
+        console.error('Error saving dataset:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to save dataset',
+          variant: 'destructive',
+        });
+        return false;
+      }
+
+      toast({
+        title: 'Success',
+        description: 'Dataset saved successfully',
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('Exception saving dataset:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to save dataset',
+        variant: 'destructive',
+      });
+      return false;
+    }
+  };
+
   return {
     allProducts,
     userAddedProducts,
@@ -319,6 +456,8 @@ export function useProductSelection() {
     loading,
     refreshProducts,
     addUserProduct,
-    savePrediction
+    savePrediction,
+    saveUploadedDataset,
+    savePricePredictionToSupabase
   };
 }

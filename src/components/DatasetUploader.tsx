@@ -1,317 +1,293 @@
-
 import React, { useState, useRef } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { UploadCloud, File, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
-import { useToast } from "@/hooks/use-toast";
-import { dataService } from '@/services/dataService';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertCircle, CheckCircle2, Upload } from 'lucide-react';
+import Papa from 'papaparse';
 import { SmartphoneInputData } from '@/types';
+import { dataService } from '@/services/dataService';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
-interface DatasetUploaderProps {
-  onDatasetProcessed?: (data: any[]) => void;
-}
-
-const DatasetUploader: React.FC<DatasetUploaderProps> = ({ onDatasetProcessed }) => {
+const DatasetUploader: React.FC = () => {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [uploadSuccess, setUploadSuccess] = useState(false);
-  const [uploadError, setUploadError] = useState('');
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [parsedData, setParsedData] = useState<SmartphoneInputData[]>([]);
+  const [datasetName, setDatasetName] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { user } = useAuth();
   const { toast } = useToast();
-  
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      setFile(selectedFile);
+      setDatasetName(selectedFile.name.split('.')[0]); // Set default name from filename
       setUploadSuccess(false);
-      setUploadError('');
+      setUploadError(null);
+      setParsedData([]);
     }
   };
-  
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
+
+  const parseCSV = (file: File): Promise<SmartphoneInputData[]> => {
+    return new Promise((resolve, reject) => {
+      Papa.parse(file, {
+        header: true,
+        dynamicTyping: true,
+        complete: (results) => {
+          try {
+            const data = results.data as any[];
+            // Transform the data to match SmartphoneInputData structure
+            const transformedData: SmartphoneInputData[] = data
+              .filter(row => row.Brand && row.Model) // Filter out empty rows
+              .map(row => {
+                // Handle nested specifications
+                const specs = {
+                  Storage: row.Storage || '',
+                  RAM: row.RAM || '',
+                  "Processor Type": row["Processor Type"] || '',
+                  "Display Hz": row["Display Hz"] || 60,
+                  "Camera MP": row["Camera MP"] || 0,
+                  "Battery Capacity": row["Battery Capacity"] || '',
+                  OS: row.OS || undefined,
+                  Color: row.Color || undefined
+                };
+
+                return {
+                  Brand: row.Brand,
+                  Model: row.Model,
+                  Price: row.Price,
+                  "Original Price": row["Original Price"] || row.Price,
+                  Stock: row.Stock || 0,
+                  Category: row.Category || 'Smartphones',
+                  Specifications: specs,
+                  "Month of Sale": row["Month of Sale"],
+                  "Seasonal Effect": row["Seasonal Effect"],
+                  "Competitor Price": row["Competitor Price"],
+                  "Demand Level": row["Demand Level"],
+                  year_of_sale: row.year_of_sale || new Date().getFullYear()
+                };
+              });
+            resolve(transformedData);
+          } catch (error) {
+            reject(error);
+          }
+        },
+        error: (error) => {
+          reject(error);
+        }
+      });
+    });
   };
-  
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      setFile(e.dataTransfer.files[0]);
-      setUploadSuccess(false);
-      setUploadError('');
-    }
-  };
-  
-  const processFile = async () => {
+
+  const handleUpload = async () => {
     if (!file) {
       setUploadError('Please select a file first');
       return;
     }
-    
-    setUploading(true);
-    setUploadError('');
-    
-    try {
-      const fileExtension = file.name.split('.').pop()?.toLowerCase();
-      let data: any[] = [];
-      
-      if (fileExtension === 'json') {
-        // Process JSON file
-        const text = await file.text();
-        data = JSON.parse(text);
-        
-        // Handle both array and single object formats
-        if (!Array.isArray(data)) {
-          data = [data];
-        }
-      } else if (fileExtension === 'csv') {
-        // Process CSV file
-        const text = await file.text();
-        data = parseCSV(text);
-      } else {
-        throw new Error('Unsupported file format. Please upload a JSON or CSV file.');
-      }
-      
-      // Process smartphone data format
-      if (data.length > 0) {
-        const processedData = processSmartphoneData(data);
-        
-        // Update dataset in dataService
-        dataService.updateDataset(processedData);
-        
-        if (onDatasetProcessed) {
-          onDatasetProcessed(processedData);
-        }
-        
-        setUploadSuccess(true);
-        toast({
-          title: "Dataset uploaded successfully",
-          description: `${processedData.length} records processed`,
-        });
-        
-        // Also update products in dataService based on the dataset
-        updateProductsFromDataset(processedData);
-      } else {
-        throw new Error('No data found in the file');
-      }
-    } catch (error) {
-      console.error('Error processing file:', error);
-      setUploadError(error instanceof Error ? error.message : 'Error processing file');
+
+    if (!datasetName.trim()) {
+      setUploadError('Please provide a dataset name');
+      return;
+    }
+
+    if (!user) {
       toast({
-        title: "Error uploading dataset",
-        description: error instanceof Error ? error.message : 'Error processing file',
-        variant: "destructive"
+        title: 'Authentication Required',
+        description: 'Please login to upload datasets',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setUploading(true);
+    setProgress(10);
+    setUploadError(null);
+
+    try {
+      // Parse the CSV file
+      setProgress(30);
+      const parsedData = await parseCSV(file);
+      setParsedData(parsedData);
+      setProgress(60);
+
+      // Save to dataService
+      dataService.updateDataset(parsedData);
+      setProgress(80);
+
+      // Save to Supabase
+      const { error } = await supabase
+        .from('uploaded_datasets')
+        .insert({
+          user_id: user.id,
+          name: datasetName,
+          file_data: parsedData,
+          dataset_type: 'smartphone_data',
+          row_count: parsedData.length,
+          column_count: Object.keys(parsedData[0] || {}).length
+        });
+
+      if (error) {
+        throw new Error(`Failed to save to database: ${error.message}`);
+      }
+
+      setProgress(100);
+      setUploadSuccess(true);
+      toast({
+        title: 'Success',
+        description: `Dataset "${datasetName}" uploaded successfully with ${parsedData.length} records`,
+      });
+
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      setUploadError(error.message || 'Failed to upload dataset');
+      toast({
+        title: 'Upload Failed',
+        description: error.message || 'Failed to upload dataset',
+        variant: 'destructive',
       });
     } finally {
       setUploading(false);
     }
   };
-  
-  const parseCSV = (csvText: string): any[] => {
-    // Simple CSV parser (can be improved for complex CSV files)
-    const lines = csvText.split('\n').filter(line => line.trim());
-    if (lines.length < 2) {
-      throw new Error('Invalid CSV format');
-    }
-    
-    const headers = lines[0].split(',').map(h => h.trim());
-    const data = [];
-    
-    for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map(v => v.trim());
-      if (values.length === headers.length) {
-        const entry: Record<string, any> = {};
-        headers.forEach((header, index) => {
-          // Try to convert numerical values
-          const value = values[index];
-          entry[header] = isNaN(Number(value)) ? value : Number(value);
-        });
-        data.push(entry);
-      }
-    }
-    
-    return data;
-  };
-  
-  const processSmartphoneData = (data: any[]): SmartphoneInputData[] => {
-    return data.map(item => {
-      let smartphones: SmartphoneInputData;
-      
-      // Check for specific smartphone data format
-      if (item.Brand && item.Model && item.Specifications) {
-        // Already in the correct format
-        smartphones = item as SmartphoneInputData;
-      } else {
-        // Try to map fields to the expected format
-        const brand = item.brand || item.Brand || item.manufacturer || '';
-        const model = item.model || item.Model || item.name || '';
-        
-        smartphones = {
-          Brand: brand,
-          Model: model,
-          Price: item.price || item.Price || 0,
-          "Original Price": item.originalPrice || item["Original Price"] || item.cost || item.Price || 0,
-          Stock: item.inventory || item.stock || item.Stock || 10,
-          Category: item.category || item.Category || 'Unknown',
-          Specifications: {
-            Storage: item.storage || (item.specs && item.specs.storage) || '128GB',
-            RAM: item.ram || (item.specs && item.specs.ram) || '4GB',
-            "Processor Type": item.processor || (item.specs && item.specs.processor) || 'Unknown',
-            "Display Hz": item.display || (item.specs && item.specs.display) || 60,
-            "Camera MP": item.camera || (item.specs && item.specs.camera) || 12,
-            "Battery Capacity": item.battery || (item.specs && item.specs.battery) || '3000mAh',
-            OS: item.os || (item.specs && item.specs.os) || undefined,
-            Color: item.color || (item.specs && item.specs.color) || undefined
-          }
-        };
-        
-        // Add additional fields if they exist
-        if (item["Month of Sale"] || item.monthOfSale) {
-          smartphones["Month of Sale"] = item["Month of Sale"] || item.monthOfSale;
-        }
-        
-        if (item["Seasonal Effect"] || item.seasonalEffect) {
-          smartphones["Seasonal Effect"] = item["Seasonal Effect"] || item.seasonalEffect;
-        }
-        
-        if (item["Competitor Price"] || item.competitorPrice) {
-          smartphones["Competitor Price"] = item["Competitor Price"] || item.competitorPrice;
-        }
-        
-        if (item["Demand Level"] || item.demandLevel) {
-          smartphones["Demand Level"] = item["Demand Level"] || item.demandLevel;
-        }
-        
-        if (item.year_of_sale || item.yearOfSale) {
-          smartphones.year_of_sale = item.year_of_sale || item.yearOfSale;
-        }
-      }
-      
-      return smartphones;
-    });
-  };
-  
-  const updateProductsFromDataset = (data: SmartphoneInputData[]) => {
-    // Convert dataset entries to product objects
-    const newProducts = data.map((item, index) => {
-      return {
-        id: `product-${index}`,
-        name: `${item.Brand} ${item.Model}`,
-        basePrice: typeof item.Price === 'string' ? parseFloat(item.Price) : item.Price,
-        category: item.Category,
-        inventory: item.Stock || 10,
-        cost: typeof item["Original Price"] === 'string' ? 
-          parseFloat(item["Original Price"]) : 
-          (item["Original Price"] || 0),
-        seasonality: item["Seasonal Effect"] ? item["Seasonal Effect"] / 10 : 0.5,
-        specifications: {
-          ...item.Specifications,
-          brand: item.Brand,
-          model: item.Model
-        }
-      };
-    });
-    
-    // Update products in dataService
-    dataService.updateProducts(newProducts);
-  };
-  
-  const triggerFileInput = () => {
+
+  const resetForm = () => {
+    setFile(null);
+    setDatasetName('');
+    setUploadSuccess(false);
+    setUploadError(null);
+    setParsedData([]);
     if (fileInputRef.current) {
-      fileInputRef.current.click();
+      fileInputRef.current.value = '';
     }
   };
-  
+
   return (
-    <Card>
+    <Card className="w-full">
       <CardHeader>
-        <CardTitle>Dataset Uploader</CardTitle>
+        <CardTitle>Upload Dataset</CardTitle>
         <CardDescription>
-          Upload a smartphone dataset file (.json or .csv) to analyze pricing data
+          Upload your smartphone sales data in CSV format to analyze pricing trends
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileChange}
-          accept=".json,.csv"
-          className="hidden"
-        />
-        
-        <div
-          className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
-            file ? 'border-green-300 bg-green-50' : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50'
-          }`}
-          onDragOver={handleDragOver}
-          onDrop={handleDrop}
-          onClick={triggerFileInput}
-        >
-          {file ? (
-            <div className="flex flex-col items-center gap-2">
-              <File className="h-10 w-10 text-blue-500" />
-              <p className="text-sm font-medium">{file.name}</p>
-              <p className="text-xs text-gray-500">{(file.size / 1024).toFixed(2)} KB</p>
+        <Tabs defaultValue="upload" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="upload">Upload</TabsTrigger>
+            <TabsTrigger value="preview" disabled={parsedData.length === 0}>
+              Preview Data
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="upload" className="space-y-4">
+            <div className="grid w-full gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="dataset-name">Dataset Name</Label>
+                <Input
+                  id="dataset-name"
+                  placeholder="Enter a name for this dataset"
+                  value={datasetName}
+                  onChange={(e) => setDatasetName(e.target.value)}
+                  disabled={uploading}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="file-upload">CSV File</Label>
+                <Input
+                  ref={fileInputRef}
+                  id="file-upload"
+                  type="file"
+                  accept=".csv"
+                  onChange={handleFileChange}
+                  disabled={uploading}
+                />
+                <p className="text-sm text-muted-foreground">
+                  Upload a CSV file with smartphone data. Required columns: Brand, Model, Price
+                </p>
+              </div>
+              {uploading && (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>Uploading...</span>
+                    <span>{progress}%</span>
+                  </div>
+                  <Progress value={progress} className="h-2" />
+                </div>
+              )}
+              {uploadSuccess && (
+                <Alert className="bg-green-50 border-green-200">
+                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  <AlertTitle className="text-green-800">Success</AlertTitle>
+                  <AlertDescription className="text-green-700">
+                    Dataset uploaded successfully with {parsedData.length} records
+                  </AlertDescription>
+                </Alert>
+              )}
+              {uploadError && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Error</AlertTitle>
+                  <AlertDescription>{uploadError}</AlertDescription>
+                </Alert>
+              )}
             </div>
-          ) : (
-            <div className="flex flex-col items-center gap-2">
-              <UploadCloud className="h-10 w-10 text-gray-400" />
-              <p className="font-medium">Drop your dataset file here or click to browse</p>
-              <p className="text-sm text-gray-500">Supports JSON and CSV files</p>
+          </TabsContent>
+          <TabsContent value="preview">
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Brand</TableHead>
+                    <TableHead>Model</TableHead>
+                    <TableHead>Price</TableHead>
+                    <TableHead>Stock</TableHead>
+                    <TableHead>Storage</TableHead>
+                    <TableHead>RAM</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {parsedData.slice(0, 5).map((row, index) => (
+                    <TableRow key={index}>
+                      <TableCell>{row.Brand}</TableCell>
+                      <TableCell>{row.Model}</TableCell>
+                      <TableCell>{row.Price}</TableCell>
+                      <TableCell>{row.Stock}</TableCell>
+                      <TableCell>{row.Specifications.Storage}</TableCell>
+                      <TableCell>{row.Specifications.RAM}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              {parsedData.length > 5 && (
+                <div className="py-2 px-4 text-sm text-muted-foreground">
+                  Showing 5 of {parsedData.length} records
+                </div>
+              )}
             </div>
-          )}
-        </div>
-        
-        {uploadError && (
-          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md flex items-center gap-2 text-red-600">
-            <AlertTriangle className="h-5 w-5" />
-            <span className="text-sm">{uploadError}</span>
-          </div>
-        )}
-        
-        {uploadSuccess && (
-          <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-md flex items-center gap-2 text-green-600">
-            <CheckCircle className="h-5 w-5" />
-            <span className="text-sm">Dataset uploaded and processed successfully!</span>
-          </div>
-        )}
-        
-        <div className="mt-4 flex justify-between items-center">
-          <Button
-            variant="outline"
-            disabled={!file}
-            onClick={() => {
-              setFile(null);
-              setUploadSuccess(false);
-              setUploadError('');
-              if (fileInputRef.current) {
-                fileInputRef.current.value = '';
-              }
-            }}
-          >
-            <XCircle className="mr-2 h-4 w-4" />
-            Clear
-          </Button>
-          
-          <Button onClick={processFile} disabled={!file || uploading}>
-            {uploading ? (
-              <>Processing...</>
-            ) : (
-              <>
-                <UploadCloud className="mr-2 h-4 w-4" />
-                Process Dataset
-              </>
-            )}
-          </Button>
-        </div>
-        
-        {file && !uploadSuccess && !uploading && (
-          <p className="text-xs text-center mt-4 text-gray-500">
-            Click "Process Dataset" to analyze the file
-          </p>
-        )}
+          </TabsContent>
+        </Tabs>
       </CardContent>
+      <CardFooter className="flex justify-between">
+        <Button variant="outline" onClick={resetForm} disabled={uploading}>
+          Reset
+        </Button>
+        <Button onClick={handleUpload} disabled={uploading || !file}>
+          <Upload className="mr-2 h-4 w-4" />
+          {uploading ? 'Uploading...' : 'Upload Dataset'}
+        </Button>
+      </CardFooter>
     </Card>
   );
 };

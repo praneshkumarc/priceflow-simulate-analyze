@@ -1,5 +1,6 @@
 import { Product, ProductSale, CompetitorPrice, PricePrediction, SimulationParams, SimulationResult, SmartphoneInputData } from "@/types";
 import * as tf from '@tensorflow/tfjs';
+import { supabase } from '@/integrations/supabase/client';
 
 class DataService {
   private products: Product[] = [
@@ -730,7 +731,8 @@ class DataService {
         competitorInfluence,
         seasonalityFactor,
         marginOptimization
-      }
+      },
+      productCost: product.cost
     };
   }
 
@@ -738,6 +740,7 @@ class DataService {
     const product = this.getProductById(params.productId);
     
     const productPrice = originalPrice || (product?.basePrice || 0);
+    const productCost = product?.cost || productPrice * 0.5;
     
     const discountedPrice = productPrice * (1 - params.discountRate);
     
@@ -749,7 +752,7 @@ class DataService {
     const expectedQuantity = baselineQuantity * (1 + quantityChangePercent);
     
     const expectedRevenue = expectedQuantity * discountedPrice;
-    const expectedProfit = expectedQuantity * (discountedPrice - (product?.cost || 0));
+    const expectedProfit = expectedQuantity * (discountedPrice - productCost);
     
     return {
       productId: params.productId,
@@ -757,7 +760,8 @@ class DataService {
       discountedPrice,
       expectedSales: expectedQuantity,
       expectedRevenue,
-      expectedProfit
+      expectedProfit,
+      productCost
     };
   }
 
@@ -826,6 +830,40 @@ class DataService {
     return productStats
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, limit);
+  }
+
+  public async saveDatasetToSupabase(user_id: string, name: string, data: any, type: string) {
+    if (!user_id) {
+      console.error('User ID is required to save dataset');
+      return false;
+    }
+
+    try {
+      const rowCount = Array.isArray(data) ? data.length : 0;
+      const columnCount = rowCount > 0 && typeof data[0] === 'object' ? Object.keys(data[0]).length : 0;
+
+      const { error } = await supabase
+        .from('uploaded_datasets')
+        .insert({
+          user_id,
+          name,
+          file_data: data,
+          dataset_type: type,
+          row_count: rowCount,
+          column_count: columnCount
+        });
+
+      if (error) {
+        console.error('Error saving dataset to Supabase:', error);
+        return false;
+      }
+
+      console.log('Dataset saved to Supabase:', name);
+      return true;
+    } catch (error) {
+      console.error('Exception saving dataset to Supabase:', error);
+      return false;
+    }
   }
 }
 

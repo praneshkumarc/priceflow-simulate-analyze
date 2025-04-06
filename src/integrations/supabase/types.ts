@@ -9,6 +9,59 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      price_predictions: {
+        Row: {
+          base_price: number
+          confidence: number | null
+          cost_price: number | null
+          created_at: string
+          factors: Json | null
+          id: string
+          model_name: string | null
+          optimal_price: number
+          product_id: string | null
+          profit_margin: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          base_price: number
+          confidence?: number | null
+          cost_price?: number | null
+          created_at?: string
+          factors?: Json | null
+          id?: string
+          model_name?: string | null
+          optimal_price: number
+          product_id?: string | null
+          profit_margin?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          base_price?: number
+          confidence?: number | null
+          cost_price?: number | null
+          created_at?: string
+          factors?: Json | null
+          id?: string
+          model_name?: string | null
+          optimal_price?: number
+          product_id?: string | null
+          profit_margin?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "price_predictions_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "user_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           category: string | null
@@ -150,6 +203,42 @@ export type Database = {
           key?: string
           symbol?: string
           timestamp?: string
+        }
+        Relationships: []
+      }
+      uploaded_datasets: {
+        Row: {
+          column_count: number
+          created_at: string
+          dataset_type: string
+          file_data: Json
+          id: string
+          name: string
+          row_count: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          column_count: number
+          created_at?: string
+          dataset_type: string
+          file_data: Json
+          id?: string
+          name: string
+          row_count: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          column_count?: number
+          created_at?: string
+          dataset_type?: string
+          file_data?: Json
+          id?: string
+          name?: string
+          row_count?: number
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }

@@ -77,7 +77,7 @@ export interface SimulationResult {
   expectedSales: number;
   expectedRevenue: number;
   expectedProfit: number;
-  productCost?: number; // Adding optional productCost property
+  productCost: number; // Changed from optional to required
 }
 
 // Analysis types
@@ -93,7 +93,7 @@ export interface PricePrediction {
   optimalPrice: number;
   confidence: number;
   factors: PriceFactors;
-  productCost?: number; // Adding optional productCost property
+  productCost: number; // Changed from optional to required
 }
 
 // Data processing types
@@ -140,5 +140,5 @@ export interface SmartphoneInputData {
   "Seasonal Effect"?: number;
   "Competitor Price"?: number;
   "Demand Level"?: number;
-  year_of_sale?: number; // Added this property
+  year_of_sale?: number;
 }
