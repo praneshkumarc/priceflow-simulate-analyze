@@ -1,599 +1,560 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  Cell,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  Radar,
-  Legend,
-  LineChart,
-  Line
-} from 'recharts';
-import { dataService } from '@/services/dataService';
-import { predictionService } from '@/services/predictionService';
-import { Product, PricePrediction, SmartphoneInputData } from '@/types';
-import { formatCurrency, formatPercentage } from '@/utils/formatters';
-import ProductSelect from '../ProductSelect';
-import { Slider } from "@/components/ui/slider";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
-import { Loader2, Search, Cpu, LineChart as LineChartIcon } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Slider } from '@/components/ui/slider';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertCircle, ArrowRight, CheckCircle2, DollarSign, LineChart, Percent, TrendingUp } from 'lucide-react';
 import { useProductSelection } from '@/hooks/use-product-selection';
-import { useAuth } from '@/contexts/AuthContext';
+import { predictionService } from '@/services/predictionService';
+import { Product, PriceFactors, PricePrediction } from '@/types';
+import { formatCurrency, formatPercentage } from '@/utils/formatters';
+import PriceElasticityChart from '@/components/charts/PriceElasticityChart';
+import PriceComparisonChart from '@/components/charts/PriceComparisonChart';
+import ProfitProjectionChart from '@/components/charts/ProfitProjectionChart';
+import { useToast } from '@/hooks/use-toast';
 
 const PricePredictionTab: React.FC = () => {
-  const { userAddedProducts, predictedPrices, savePrediction, refreshProducts } = useProductSelection();
-  const [selectedProductId, setSelectedProductId] = useState<string>('');
+  const { userAddedProducts, savePrediction, predictedPrices, loading } = useProductSelection();
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [prediction, setPrediction] = useState<PricePrediction | null>(null);
-  const [adjustedPrice, setAdjustedPrice] = useState<number>(0);
-  const [competitorPrices, setCompetitorPrices] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [processingFeatures, setProcessingFeatures] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<string>('');
-  const [models, setModels] = useState<string[]>([]);
-  const [basePrice, setBasePrice] = useState<number>(0);
-  const [profitMargin, setProfitMargin] = useState<number>(30); // Default 30%
-  const [knnPredictedPrice, setKnnPredictedPrice] = useState<number | null>(null);
-  const [generatingOptimalPrice, setGeneratingOptimalPrice] = useState(false);
+  const [optimizedPrice, setOptimizedPrice] = useState<number | null>(null);
+  const [manualPrice, setManualPrice] = useState<number | null>(null);
+  const [confidence, setConfidence] = useState(85);
+  const [priceFactors, setPriceFactors] = useState<PriceFactors>({
+    demandCoefficient: 0.7,
+    competitorInfluence: 0.5,
+    seasonalityFactor: 0.3,
+    marginOptimization: 0.8,
+  });
+  const [predictionSaved, setPredictionSaved] = useState(false);
+  const [activeTab, setActiveTab] = useState('automatic');
+  const [productCost, setProductCost] = useState<number>(0);
   const { toast } = useToast();
-  const { user } = useAuth();
-  
+
+  // Update product cost when selected product changes
   useEffect(() => {
-    const dataset = dataService.getDataset();
-    if (dataset && dataset.length > 0) {
-      const uniqueModels = [...new Set(dataset.map(item => item.Model))];
-      setModels(uniqueModels);
+    if (selectedProduct) {
+      setProductCost(selectedProduct.cost);
       
-      if (uniqueModels.length > 0 && !selectedModel) {
-        setSelectedModel(uniqueModels[0]);
+      // Check if there's a saved prediction for this product
+      const savedPrice = predictedPrices[selectedProduct.id];
+      if (savedPrice) {
+        setOptimizedPrice(savedPrice);
+        setManualPrice(savedPrice);
         
-        const modelItems = dataset.filter(item => item.Model === uniqueModels[0]);
-        if (modelItems.length > 0) {
-          const avgPrice = modelItems.reduce((sum, item) => {
-            const itemPrice = typeof item.Price === 'string' ? parseFloat(item.Price) : item.Price;
-            return sum + (itemPrice || 0);
-          }, 0) / modelItems.length;
-          
-          setBasePrice(avgPrice);
+        // Get full prediction details if available
+        const predictionDetails = predictionService.getPredictionDetails(selectedProduct.id);
+        if (predictionDetails) {
+          setPriceFactors(predictionDetails.factors);
+          setConfidence(predictionDetails.confidence);
         }
+      } else {
+        // Reset to defaults if no prediction exists
+        setOptimizedPrice(null);
+        setManualPrice(selectedProduct.basePrice);
+        setPriceFactors({
+          demandCoefficient: 0.7,
+          competitorInfluence: 0.5,
+          seasonalityFactor: 0.3,
+          marginOptimization: 0.8,
+        });
+        setConfidence(85);
       }
-    }
-    
-    if (userAddedProducts.length > 0) {
-      setSelectedProductId(userAddedProducts[0].id);
-    }
-    
-    setLoading(false);
-  }, [userAddedProducts]);
-  
-  useEffect(() => {
-    if (!selectedProductId) return;
-    
-    const product = userAddedProducts.find(p => p.id === selectedProductId);
-    if (product) {
-      setSelectedProduct(product);
       
-      const pricePred = dataService.predictOptimalPrice(selectedProductId);
-      if (pricePred) {
-        setPrediction(pricePred);
-        setAdjustedPrice(pricePred.optimalPrice);
-        predictionService.savePrediction(pricePred);
-        toast({
-          title: "Optimal Price Prediction",
-          description: `Generated optimal price: ${formatCurrency(pricePred.optimalPrice)}`,
-        });
-        setBasePrice(pricePred.basePrice);
-        
-        const compPrices = dataService.getCompetitorPrices(selectedProductId);
-        const compData = compPrices.reduce((acc, comp) => {
-          if (!acc[comp.competitorName]) {
-            acc[comp.competitorName] = [];
-          }
-          acc[comp.competitorName].push(comp);
-          return acc;
-        }, {} as Record<string, any[]>);
-        
-        const avgCompPrices = Object.entries(compData).map(([name, prices]) => {
-          const avgPrice = prices.reduce((sum, p) => sum + p.price, 0) / prices.length;
-          return {
-            name,
-            price: Math.round(avgPrice * 100) / 100
-          };
-        });
-        
-        if (product) {
-          avgCompPrices.push({
-            name: "Our Base Price",
-            price: product.basePrice
-          });
-          
-          if (pricePred) {
-            avgCompPrices.push({
-              name: "AI Suggested",
-              price: pricePred.optimalPrice
-            });
-          }
-        }
-        
-        setCompetitorPrices(avgCompPrices);
-      }
+      setPredictionSaved(false);
     }
-  }, [selectedProductId, userAddedProducts]);
-  
-  useEffect(() => {
-    if (selectedModel && !basePrice) {
-      const dataset = dataService.getDataset();
-      const modelItems = dataset.filter(item => item.Model === selectedModel);
-      if (modelItems.length > 0) {
-        const avgPrice = modelItems.reduce((sum, item) => {
-          const itemPrice = typeof item.Price === 'string' ? parseFloat(item.Price) : item.Price;
-          return sum + (itemPrice || 0);
-        }, 0) / modelItems.length;
-        
-        setBasePrice(avgPrice);
-      }
-    }
-  }, [selectedModel, basePrice]);
-  
-  const radarData = prediction ? [
-    { subject: 'Demand', A: prediction.factors.demandCoefficient * 100, fullMark: 100 },
-    { subject: 'Competition', A: (prediction.factors.competitorInfluence + 0.2) * 100, fullMark: 100 },
-    { subject: 'Seasonality', A: prediction.factors.seasonalityFactor * 100, fullMark: 100 },
-    { subject: 'Margin', A: (prediction.factors.marginOptimization + 0.15) * 100, fullMark: 100 },
-  ] : [];
-  
-  const handlePriceChange = (value: number[]) => {
-    setAdjustedPrice(value[0]);
+  }, [selectedProduct, predictedPrices]);
+
+  const handleProductChange = (productId: string) => {
+    const product = userAddedProducts.find(p => p.id === productId) || null;
+    setSelectedProduct(product);
   };
-  
-  const calculateProfit = (price: number): number => {
-    if (!selectedProduct) return 0;
-    
-    const cost = selectedProduct.cost;
-    const unitProfit = price - cost;
-    
-    const priceFactor = prediction ? price / prediction.optimalPrice : 1;
-    const estimatedSales = 100 * Math.pow(0.9, priceFactor - 1);
-    
-    return unitProfit * estimatedSales;
+
+  const handleFactorChange = (factor: keyof PriceFactors, value: number) => {
+    setPriceFactors(prev => ({
+      ...prev,
+      [factor]: value,
+    }));
   };
-  
-  const generateProfitCurve = (): any[] => {
-    if (!selectedProduct || !prediction) return [];
-    
-    const baseCost = selectedProduct.cost;
+
+  const calculateOptimalPrice = () => {
+    if (!selectedProduct) return;
+
+    // Simple price optimization algorithm
     const basePrice = selectedProduct.basePrice;
-    const optimalPrice = prediction.optimalPrice;
+    const cost = productCost;
     
-    const minPrice = Math.max(baseCost * 1.1, basePrice * 0.8);
-    const maxPrice = basePrice * 1.3;
-    const step = (maxPrice - minPrice) / 20;
+    // Calculate weighted factors
+    const demandFactor = 1 - (priceFactors.demandCoefficient * 0.2); // Higher demand coefficient reduces price less
+    const competitorFactor = 1 - (priceFactors.competitorInfluence * 0.1); // Higher competitor influence reduces price more
+    const seasonalFactor = 1 + (priceFactors.seasonalityFactor * 0.15); // Higher seasonality increases price
+    const marginFactor = 1 + (priceFactors.marginOptimization * 0.25); // Higher margin optimization increases price
     
-    const data = [];
-    for (let price = minPrice; price <= maxPrice; price += step) {
-      data.push({
-        price: Math.round(price * 100) / 100,
-        profit: calculateProfit(price)
-      });
+    // Calculate optimal price with minimum margin protection
+    const minMargin = 1.2; // Minimum 20% margin over cost
+    const calculatedPrice = basePrice * demandFactor * competitorFactor * seasonalFactor * marginFactor;
+    const minPrice = cost * minMargin;
+    
+    // Ensure price is at least the minimum margin above cost
+    const optimal = Math.max(calculatedPrice, minPrice);
+    setOptimizedPrice(optimal);
+    
+    // Also update manual price to match
+    setManualPrice(optimal);
+    
+    // Reset saved state
+    setPredictionSaved(false);
+  };
+
+  const handleManualPriceChange = (value: string) => {
+    const price = parseFloat(value);
+    if (!isNaN(price) && price > 0) {
+      setManualPrice(price);
+      setPredictionSaved(false);
     }
-    
-    return data;
   };
-  
-  const profitCurveData = generateProfitCurve();
-  
-  const generateOptimalPrice = () => {
-    if (!selectedProductId) return;
+
+  const handleSavePrediction = async () => {
+    if (!selectedProduct || !manualPrice) return;
     
-    setGeneratingOptimalPrice(true);
+    // Create prediction object
+    const prediction: PricePrediction = {
+      productId: selectedProduct.id,
+      basePrice: selectedProduct.basePrice,
+      optimalPrice: manualPrice,
+      confidence: confidence,
+      factors: priceFactors,
+      productCost: productCost
+    };
     
-    setTimeout(() => {
-      try {
-        const pricePred = dataService.predictOptimalPrice(selectedProductId);
-        if (pricePred) {
-          setPrediction(pricePred);
-          setAdjustedPrice(pricePred.optimalPrice);
-          predictionService.savePrediction(pricePred);
-          toast({
-            title: "Optimal Price Prediction",
-            description: `Generated optimal price: ${formatCurrency(pricePred.optimalPrice)}`,
-          });
-        }
-      } catch (error) {
-        console.error("Prediction error:", error);
-        toast({
-          title: "Prediction Error",
-          description: error instanceof Error ? error.message : "Error predicting price",
-          variant: "destructive"
-        });
-      } finally {
-        setGeneratingOptimalPrice(false);
-      }
-    }, 1500);
-  };
-  
-  const predictPriceWithKNN = () => {
-    if (!selectedModel || basePrice <= 0) {
+    // Save prediction
+    const success = await savePrediction(selectedProduct.id, prediction);
+    
+    if (success) {
+      // Also save to local prediction service for immediate use
+      predictionService.savePrediction(prediction);
+      setPredictionSaved(true);
+      
       toast({
-        title: "Missing Information",
-        description: "Please select a model and enter a base price",
-        variant: "destructive"
+        title: "Price Saved",
+        description: `Optimal price of ${formatCurrency(manualPrice)} saved for ${selectedProduct.name}`,
       });
-      return;
     }
-    
-    setProcessingFeatures(true);
-    
-    setTimeout(() => {
-      try {
-        const predictedPrice = dataService.predictPrice(selectedModel, basePrice, profitMargin);
-        setKnnPredictedPrice(predictedPrice);
-        
-        const productId = `model-${selectedModel}`;
-        const prediction = {
-          productId,
-          basePrice: basePrice,
-          optimalPrice: predictedPrice,
-          confidence: 90,
-          factors: {
-            demandCoefficient: 0.75,
-            competitorInfluence: 0.35,
-            seasonalityFactor: 0.55,
-            marginOptimization: 0.65
-          }
-        };
-        
-        predictionService.savePrediction(prediction);
-        console.log("KNN Prediction saved:", prediction);
-        
-        toast({
-          title: "Prediction Complete",
-          description: `Predicted optimal price: ${formatCurrency(predictedPrice)}`,
-        });
-      } catch (error) {
-        console.error("Prediction error:", error);
-        toast({
-          title: "Prediction Error",
-          description: error instanceof Error ? error.message : "Error predicting price",
-          variant: "destructive"
-        });
-      } finally {
-        setProcessingFeatures(false);
-      }
-    }, 2000);
   };
-  
+
+  // Calculate profit margin
+  const calculateMargin = (price: number) => {
+    if (!selectedProduct || price <= 0 || productCost <= 0) return 0;
+    return (price - productCost) / price * 100;
+  };
+
+  // Calculate estimated monthly sales at a given price
+  const estimateSales = (price: number) => {
+    if (!selectedProduct || price <= 0) return 0;
+    
+    // Simple demand curve: higher price = lower sales
+    const baseQuantity = 100; // Base monthly sales
+    const elasticity = 1.5; // Price elasticity
+    const basePrice = selectedProduct.basePrice;
+    
+    // Calculate quantity based on price elasticity
+    // Q = Q0 * (P/P0)^(-e) where e is elasticity
+    return Math.round(baseQuantity * Math.pow(basePrice / price, elasticity));
+  };
+
+  // Calculate estimated monthly profit
+  const estimateProfit = (price: number) => {
+    const sales = estimateSales(price);
+    return (price - productCost) * sales;
+  };
+
+  // Get optimal price or fallback to base price
+  const getOptimalPrice = () => {
+    return optimizedPrice || (selectedProduct ? selectedProduct.basePrice : 0);
+  };
+
+  // Get price points for comparison
+  const getPricePoints = () => {
+    if (!selectedProduct) return [];
+    
+    const optimal = getOptimalPrice();
+    const base = selectedProduct.basePrice;
+    const cost = productCost;
+    
+    return [
+      { name: 'Cost', value: cost },
+      { name: 'Base', value: base },
+      { name: 'Optimal', value: optimal },
+    ];
+  };
+
   return (
     <div className="space-y-6">
-      {!user && (
-        <Card>
-          <CardContent className="py-6">
-            <div className="text-center">
-              <p className="text-muted-foreground mb-4">
-                You need to be logged in to predict prices for your products.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-      
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Standard Price Prediction</CardTitle>
-            <CardDescription>Select a product from your inventory</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {userAddedProducts.length === 0 ? (
-                <div className="text-center p-4 border border-dashed rounded-md">
-                  <p className="text-muted-foreground">
-                    {user ? "No products found. Add products in the Products tab first." 
-                          : "Login to manage your products and run price predictions."}
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <ProductSelect
-                    products={userAddedProducts}
-                    onProductSelect={setSelectedProductId}
-                    selectedProductId={selectedProductId}
-                    placeholder="Select a product for price prediction"
-                  />
-                  
-                  <Button 
-                    className="w-full mt-2 flex justify-center items-center px-2 py-2 sm:py-2 text-xs sm:text-sm md:text-base" 
-                    variant="outline"
-                    onClick={generateOptimalPrice}
-                    disabled={!selectedProductId || generatingOptimalPrice}
-                  >
-                    {generatingOptimalPrice ? (
-                      <>
-                        <Loader2 className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
-                        <span className="whitespace-nowrap text-xs sm:text-sm">Generating...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Cpu className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
-                        <span className="whitespace-nowrap text-xs sm:text-sm">Generate Optimal Price</span>
-                      </>
-                    )}
-                  </Button>
-                </>
-              )}
-              
-              {selectedProduct && prediction && (
-                <div className="space-y-4 mt-4">
-                  <div className="flex flex-col sm:flex-row justify-between gap-2">
-                    <div className="border p-2 sm:p-3 rounded-md flex-1">
-                      <div className="text-xs sm:text-sm font-medium text-muted-foreground">Base Price</div>
-                      <div className="text-lg sm:text-2xl font-bold">{formatCurrency(selectedProduct.basePrice)}</div>
-                    </div>
-                    <div className="border p-2 sm:p-3 rounded-md flex-1">
-                      <div className="text-xs sm:text-sm font-medium text-muted-foreground">Optimal Price</div>
-                      <div className="text-lg sm:text-2xl font-bold text-app-blue-500">{formatCurrency(prediction.optimalPrice)}</div>
-                    </div>
-                    <div className="border p-2 sm:p-3 rounded-md flex-1">
-                      <div className="text-xs sm:text-sm font-medium text-muted-foreground">Confidence</div>
-                      <div className="text-lg sm:text-2xl font-bold">{prediction.confidence}%</div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader>
-            <CardTitle>Advanced KNN Price Prediction</CardTitle>
-            <CardDescription>Select a model and enter price parameters</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="model">Product Model</Label>
-                <Select 
-                  value={selectedModel} 
-                  onValueChange={setSelectedModel}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a model" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {models.map(model => (
-                      <SelectItem key={model} value={model}>{model}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="basePrice">Base Price ($)</Label>
-                  <Input
-                    id="basePrice"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={basePrice}
-                    onChange={(e) => setBasePrice(parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="profitMargin">Target Profit Margin (%)</Label>
-                  <div className="flex items-center space-x-2">
-                    <Slider
-                      id="profitMargin"
-                      value={[profitMargin]}
-                      min={0}
-                      max={100}
-                      step={1}
-                      onValueChange={(value) => setProfitMargin(value[0])}
-                      className="flex-1"
-                    />
-                    <span className="w-10 text-right">{profitMargin}%</span>
-                  </div>
-                </div>
-              </div>
-              
-              <Button 
-                className="w-full flex justify-center items-center px-2 py-2 sm:py-2 text-xs sm:text-sm md:text-base" 
-                onClick={predictPriceWithKNN}
-                disabled={processingFeatures || !selectedModel || basePrice <= 0}
+      <Card>
+        <CardHeader>
+          <CardTitle>Price Prediction</CardTitle>
+          <CardDescription>
+            Optimize pricing for your products using AI-driven analysis
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="product-select">Select Product</Label>
+              <Select
+                value={selectedProduct?.id || ''}
+                onValueChange={handleProductChange}
+                disabled={loading || userAddedProducts.length === 0}
               >
-                {processingFeatures ? (
-                  <>
-                    <Loader2 className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
-                    <span className="whitespace-nowrap text-xs sm:text-sm">Extracting Features...</span>
-                  </>
-                ) : (
-                  <>
-                    <Cpu className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
-                    <span className="whitespace-nowrap text-xs sm:text-sm">Predict Price with KNN</span>
-                  </>
-                )}
-              </Button>
-              
-              {knnPredictedPrice !== null && (
-                <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-md">
-                  <div className="text-center">
-                    <div className="text-sm font-medium text-green-800">KNN Predicted Price</div>
-                    <div className="text-xl sm:text-3xl font-bold text-green-600">
-                      {formatCurrency(knnPredictedPrice)}
-                    </div>
-                    <div className="text-xs text-green-600 mt-1">
-                      Predicted using K-Nearest Neighbors algorithm
-                    </div>
-                  </div>
-                </div>
+                <SelectTrigger id="product-select">
+                  <SelectValue placeholder="Choose a product to optimize" />
+                </SelectTrigger>
+                <SelectContent>
+                  {userAddedProducts.map((product) => (
+                    <SelectItem key={product.id} value={product.id}>
+                      {product.name} ({formatCurrency(product.basePrice)})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {userAddedProducts.length === 0 && !loading && (
+                <p className="text-sm text-muted-foreground mt-2">
+                  No products found. Please add products in the Product Management tab.
+                </p>
               )}
             </div>
-          </CardContent>
-        </Card>
-      </div>
-      
-      {selectedProduct && prediction && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Price Factors Analysis</CardTitle>
-            <CardDescription>Factors that influenced the price recommendation</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="h-[250px] md:h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <RadarChart outerRadius={90} width={400} height={250} data={radarData}>
-                    <PolarGrid />
-                    <PolarAngleAxis dataKey="subject" />
-                    <PolarRadiusAxis angle={30} domain={[0, 100]} />
-                    <Radar
-                      name="Price Factors"
-                      dataKey="A"
-                      stroke="#3aa4ff"
-                      fill="#3aa4ff"
-                      fillOpacity={0.6}
-                    />
-                    <Legend />
-                  </RadarChart>
-                </ResponsiveContainer>
-              </div>
-              
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+            {selectedProduct && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
-                    <div className="text-sm font-medium">Demand Coefficient</div>
-                    <div className="text-base">
-                      {formatPercentage(prediction.factors.demandCoefficient)}
+                    <Label>Base Price</Label>
+                    <div className="text-2xl font-bold">
+                      {formatCurrency(selectedProduct.basePrice)}
                     </div>
+                    <p className="text-sm text-muted-foreground">Current price</p>
                   </div>
                   <div className="space-y-2">
-                    <div className="text-sm font-medium">Competitor Influence</div>
-                    <div className="text-base">
-                      {formatPercentage(prediction.factors.competitorInfluence + 0.2)}
+                    <Label>Product Cost</Label>
+                    <div className="flex items-center space-x-2">
+                      <Input
+                        type="number"
+                        value={productCost}
+                        onChange={(e) => setProductCost(parseFloat(e.target.value) || 0)}
+                        className="text-lg font-medium"
+                      />
                     </div>
+                    <p className="text-sm text-muted-foreground">Manufacturing/acquisition cost</p>
                   </div>
                   <div className="space-y-2">
-                    <div className="text-sm font-medium">Seasonality Factor</div>
-                    <div className="text-base">
-                      {formatPercentage(prediction.factors.seasonalityFactor)}
+                    <Label>Current Margin</Label>
+                    <div className="text-2xl font-bold">
+                      {formatPercentage(calculateMargin(selectedProduct.basePrice))}
                     </div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="text-sm font-medium">Margin Optimization</div>
-                    <div className="text-base">
-                      {formatPercentage(prediction.factors.marginOptimization + 0.15)}
-                    </div>
+                    <p className="text-sm text-muted-foreground">Based on cost and base price</p>
                   </div>
                 </div>
-                
-                <div className="mt-4">
-                  <div className="text-sm font-medium mb-2">Price Recommendations</div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="border p-3 rounded-md">
-                      <div className="text-xs text-muted-foreground">Standard Model</div>
-                      <div className="text-lg font-bold text-app-blue-500">
-                        {formatCurrency(prediction.optimalPrice)}
+
+                <Separator />
+
+                <Tabs value={activeTab} onValueChange={setActiveTab}>
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="automatic">Automatic Optimization</TabsTrigger>
+                    <TabsTrigger value="manual">Manual Adjustment</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="automatic" className="space-y-6 pt-4">
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <Label>Demand Sensitivity</Label>
+                          <span className="text-sm">{(priceFactors.demandCoefficient * 100).toFixed(0)}%</span>
+                        </div>
+                        <Slider
+                          value={[priceFactors.demandCoefficient * 100]}
+                          min={0}
+                          max={100}
+                          step={5}
+                          onValueChange={(value) => handleFactorChange('demandCoefficient', value[0] / 100)}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          How sensitive are customers to price changes?
+                        </p>
                       </div>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <Label>Competitor Influence</Label>
+                          <span className="text-sm">{(priceFactors.competitorInfluence * 100).toFixed(0)}%</span>
+                        </div>
+                        <Slider
+                          value={[priceFactors.competitorInfluence * 100]}
+                          min={0}
+                          max={100}
+                          step={5}
+                          onValueChange={(value) => handleFactorChange('competitorInfluence', value[0] / 100)}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          How much do competitor prices affect your sales?
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <Label>Seasonality Impact</Label>
+                          <span className="text-sm">{(priceFactors.seasonalityFactor * 100).toFixed(0)}%</span>
+                        </div>
+                        <Slider
+                          value={[priceFactors.seasonalityFactor * 100]}
+                          min={0}
+                          max={100}
+                          step={5}
+                          onValueChange={(value) => handleFactorChange('seasonalityFactor', value[0] / 100)}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Is this product currently in high season?
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <Label>Margin Optimization</Label>
+                          <span className="text-sm">{(priceFactors.marginOptimization * 100).toFixed(0)}%</span>
+                        </div>
+                        <Slider
+                          value={[priceFactors.marginOptimization * 100]}
+                          min={0}
+                          max={100}
+                          step={5}
+                          onValueChange={(value) => handleFactorChange('marginOptimization', value[0] / 100)}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          How important is maximizing profit margin vs. volume?
+                        </p>
+                      </div>
+
+                      <Button 
+                        onClick={calculateOptimalPrice}
+                        className="w-full"
+                      >
+                        <LineChart className="mr-2 h-4 w-4" />
+                        Calculate Optimal Price
+                      </Button>
                     </div>
-                    {knnPredictedPrice !== null && (
-                      <div className="border p-3 rounded-md">
-                        <div className="text-xs text-muted-foreground">KNN Model</div>
-                        <div className="text-lg font-bold text-green-600">
-                          {formatCurrency(knnPredictedPrice)}
+                  </TabsContent>
+                  <TabsContent value="manual" className="space-y-6 pt-4">
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="manual-price">Price</Label>
+                        <div className="flex items-center space-x-2">
+                          <DollarSign className="h-4 w-4 text-muted-foreground" />
+                          <Input
+                            id="manual-price"
+                            type="number"
+                            value={manualPrice || ''}
+                            onChange={(e) => handleManualPriceChange(e.target.value)}
+                            className="text-lg font-medium"
+                          />
                         </div>
                       </div>
+
+                      <div className="space-y-2">
+                        <Label>Profit Margin</Label>
+                        <div className="flex items-center space-x-2">
+                          <div className="text-xl font-bold">
+                            {formatPercentage(calculateMargin(manualPrice || 0))}
+                          </div>
+                          <Badge variant={calculateMargin(manualPrice || 0) > 30 ? "success" : "default"}>
+                            {calculateMargin(manualPrice || 0) > calculateMargin(selectedProduct.basePrice) 
+                              ? "Improved" 
+                              : "Reduced"}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {calculateMargin(manualPrice || 0) > 30 
+                            ? "Healthy margin" 
+                            : "Consider increasing price to improve margin"}
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Estimated Monthly Sales</Label>
+                        <div className="text-xl font-bold">
+                          {estimateSales(manualPrice || 0).toLocaleString()} units
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Based on price elasticity model
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Estimated Monthly Profit</Label>
+                        <div className="text-xl font-bold text-green-600">
+                          {formatCurrency(estimateProfit(manualPrice || 0))}
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          (Price - Cost) × Estimated Sales
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Prediction Confidence</Label>
+                        <div className="flex items-center space-x-2">
+                          <Slider
+                            value={[confidence]}
+                            min={50}
+                            max={100}
+                            step={5}
+                            onValueChange={(value) => setConfidence(value[0])}
+                          />
+                          <span className="w-12 text-right">{confidence}%</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          How confident are you in this price prediction?
+                        </p>
+                      </div>
+                    </div>
+                  </TabsContent>
+                </Tabs>
+
+                {optimizedPrice !== null && (
+                  <div className="bg-muted rounded-lg p-4 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-lg font-medium">Optimal Price</h3>
+                        <p className="text-sm text-muted-foreground">
+                          {optimizedPrice > selectedProduct.basePrice 
+                            ? "Price increase recommended" 
+                            : "Price decrease recommended"}
+                        </p>
+                      </div>
+                      <div className="text-3xl font-bold text-primary">
+                        {formatCurrency(optimizedPrice)}
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-3 gap-4 text-center">
+                      <div>
+                        <div className="text-sm font-medium text-muted-foreground">Change</div>
+                        <div className={`text-lg font-bold ${
+                          optimizedPrice > selectedProduct.basePrice ? "text-green-600" : "text-red-600"
+                        }`}>
+                          {formatPercentage((optimizedPrice / selectedProduct.basePrice - 1) * 100)}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium text-muted-foreground">Margin</div>
+                        <div className="text-lg font-bold">
+                          {formatPercentage(calculateMargin(optimizedPrice))}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium text-muted-foreground">Est. Profit</div>
+                        <div className="text-lg font-bold text-green-600">
+                          {formatCurrency(estimateProfit(optimizedPrice))}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <Button 
+                      onClick={handleSavePrediction}
+                      className="w-full"
+                      disabled={predictionSaved}
+                    >
+                      {predictionSaved ? (
+                        <>
+                          <CheckCircle2 className="mr-2 h-4 w-4" />
+                          Price Saved
+                        </>
+                      ) : (
+                        <>
+                          <ArrowRight className="mr-2 h-4 w-4" />
+                          Save Price Prediction
+                        </>
+                      )}
+                    </Button>
+                    
+                    {predictionSaved && (
+                      <Alert className="bg-green-50 border-green-200">
+                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        <AlertTitle className="text-green-800">Price prediction saved</AlertTitle>
+                        <AlertDescription className="text-green-700">
+                          This price will be used in reports and dashboards
+                        </AlertDescription>
+                      </Alert>
                     )}
                   </div>
-                </div>
+                )}
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-      
-      <div className="grid gap-6 md:grid-cols-2">
-        {selectedProduct && prediction && (
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {selectedProduct && optimizedPrice && (
+        <div className="grid gap-6 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Price Elasticity Analysis</CardTitle>
+              <CardDescription>
+                Impact of price changes on sales volume and profit
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[300px]">
+                <PriceElasticityChart 
+                  basePrice={selectedProduct.basePrice}
+                  optimalPrice={optimizedPrice}
+                  productCost={productCost}
+                />
+              </div>
+            </CardContent>
+          </Card>
+          
           <Card>
             <CardHeader>
               <CardTitle>Price Comparison</CardTitle>
-              <CardDescription>Your price vs. competitors</CardDescription>
+              <CardDescription>
+                Comparing cost, base, and optimal prices
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-[250px] md:h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={competitorPrices}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-                    <Bar dataKey="price" name="Price">
-                      {competitorPrices.map((entry, index) => (
-                        <Cell 
-                          key={`cell-${index}`} 
-                          fill={entry.name === "Our Base Price" 
-                            ? "#3aa4ff" 
-                            : entry.name === "AI Suggested" 
-                              ? "#4ac0c0" 
-                              : "#8884d8"} 
-                        />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="h-[300px]">
+                <PriceComparisonChart 
+                  pricePoints={getPricePoints()}
+                  margins={{
+                    base: calculateMargin(selectedProduct.basePrice),
+                    optimal: calculateMargin(optimizedPrice)
+                  }}
+                />
               </div>
             </CardContent>
           </Card>
-        )}
-        
-        {selectedProduct && prediction && (
-          <Card>
+          
+          <Card className="md:col-span-2">
             <CardHeader>
-              <CardTitle>Profit Optimization Curve</CardTitle>
-              <CardDescription>Estimated profit at different price points</CardDescription>
+              <CardTitle>Profit Projection</CardTitle>
+              <CardDescription>
+                Projected profit at different price points
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-[250px] md:h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={profitCurveData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis 
-                      dataKey="price" 
-                      tickFormatter={(value) => formatCurrency(value)}
-                    />
-                    <YAxis />
-                    <Tooltip 
-                      formatter={(value, name) => [formatCurrency(Number(value)), 'Estimated Profit']}
-                      labelFormatter={(value) => `Price: ${formatCurrency(Number(value))}`}
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="profit" 
-                      stroke="#4ac0c0" 
-                      activeDot={{ r: 8 }} 
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+              <div className="h-[300px]">
+                <ProfitProjectionChart 
+                  basePrice={selectedProduct.basePrice}
+                  optimalPrice={optimizedPrice}
+                  productCost={productCost}
+                  productName={selectedProduct.name}
+                />
               </div>
             </CardContent>
           </Card>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };

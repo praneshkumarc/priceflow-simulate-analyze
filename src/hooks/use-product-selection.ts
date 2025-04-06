@@ -167,19 +167,25 @@ export function useProductSelection() {
         marginOptimization: prediction.factors.marginOptimization
       };
 
-      // Check if prediction already exists in price_predictions table
-      const { data: existingPred } = await supabase
-        .from('price_predictions')
+      // Since we can't directly query tables not in the Database type,
+      // we'll use a more generic approach with 'any' type annotations
+      const { data: existingPred, error: fetchError } = await supabase
+        .from('price_predictions' as any)
         .select('*')
         .eq('product_id', productId)
         .maybeSingle();
+
+      if (fetchError) {
+        console.error('Error fetching existing prediction:', fetchError);
+        return false;
+      }
 
       let result;
       
       if (existingPred) {
         // Update existing prediction
         result = await supabase
-          .from('price_predictions')
+          .from('price_predictions' as any)
           .update({
             base_price: prediction.basePrice,
             optimal_price: prediction.optimalPrice,
@@ -192,7 +198,7 @@ export function useProductSelection() {
       } else {
         // Insert new prediction
         result = await supabase
-          .from('price_predictions')
+          .from('price_predictions' as any)
           .insert({
             user_id: user.id,
             product_id: productId,
@@ -327,11 +333,16 @@ export function useProductSelection() {
       };
 
       // Check if prediction already exists
-      const { data: existing } = await supabase
+      const { data: existing, error: fetchError } = await supabase
         .from('user_price_predictions')
         .select('*')
         .eq('product_id', productId)
         .maybeSingle() as { data: UserPricePrediction | null, error: any };
+
+      if (fetchError) {
+        console.error('Error fetching existing prediction:', fetchError);
+        return false;
+      }
 
       let result;
       
@@ -410,8 +421,9 @@ export function useProductSelection() {
     }
 
     try {
+      // Using type assertion since the table might not be in the Database type
       const { error } = await supabase
-        .from('uploaded_datasets')
+        .from('uploaded_datasets' as any)
         .insert({
           user_id: user.id,
           name,
@@ -419,7 +431,7 @@ export function useProductSelection() {
           dataset_type: datasetType,
           row_count: rowCount,
           column_count: columnCount
-        });
+        } as any);
 
       if (error) {
         console.error('Error saving dataset:', error);

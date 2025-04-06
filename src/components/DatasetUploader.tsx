@@ -1,3 +1,4 @@
+
 import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,10 +13,14 @@ import { SmartphoneInputData } from '@/types';
 import { dataService } from '@/services/dataService';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { useDatasetUploader } from '@/utils/datasetUploader';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
-const DatasetUploader: React.FC = () => {
+interface DatasetUploaderProps {
+  onDatasetProcessed?: (data: any[]) => void;
+}
+
+const DatasetUploader: React.FC<DatasetUploaderProps> = ({ onDatasetProcessed }) => {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -26,6 +31,7 @@ const DatasetUploader: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
   const { toast } = useToast();
+  const { uploadDataset } = useDatasetUploader();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -124,20 +130,11 @@ const DatasetUploader: React.FC = () => {
       dataService.updateDataset(parsedData);
       setProgress(80);
 
-      // Save to Supabase
-      const { error } = await supabase
-        .from('uploaded_datasets')
-        .insert({
-          user_id: user.id,
-          name: datasetName,
-          file_data: parsedData,
-          dataset_type: 'smartphone_data',
-          row_count: parsedData.length,
-          column_count: Object.keys(parsedData[0] || {}).length
-        });
-
-      if (error) {
-        throw new Error(`Failed to save to database: ${error.message}`);
+      // Save to Supabase using the utility function
+      const result = await uploadDataset(datasetName, parsedData, 'smartphone_data');
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to upload dataset');
       }
 
       setProgress(100);
@@ -150,6 +147,11 @@ const DatasetUploader: React.FC = () => {
       // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
+      }
+
+      // If a callback was provided, call it with the parsed data
+      if (onDatasetProcessed) {
+        onDatasetProcessed(parsedData);
       }
     } catch (error: any) {
       console.error('Upload error:', error);

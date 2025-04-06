@@ -18,6 +18,8 @@ export async function uploadDatasetToSupabase(
     const rowCount = Array.isArray(fileData) ? fileData.length : 0;
     const columnCount = rowCount > 0 && typeof fileData[0] === 'object' ? Object.keys(fileData[0]).length : 0;
 
+    // We can't directly reference tables that aren't in the Database type
+    // So we'll use the generic insert method
     const { data, error } = await supabase
       .from('uploaded_datasets')
       .insert({
@@ -27,9 +29,8 @@ export async function uploadDatasetToSupabase(
         dataset_type: datasetType,
         row_count: rowCount,
         column_count: columnCount
-      })
-      .select()
-      .single();
+      } as any)
+      .select();
 
     if (error) {
       console.error('Error saving dataset to Supabase:', error);
@@ -55,7 +56,7 @@ export function useDatasetUploader() {
         description: 'Please login to upload datasets',
         variant: 'destructive',
       });
-      return { success: false };
+      return { success: false, error: 'Authentication required' };
     }
 
     const result = await uploadDatasetToSupabase(user.id, fileName, fileData, datasetType);

@@ -5,13 +5,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import DatasetUploader from '@/components/DatasetUploader';
 import MLModelTrainer from '@/components/MLModelTrainer';
 import SmartphonePricePredictor from '@/components/SmartphonePricePredictor';
-import { toast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { Smartphone, Database, LineChart } from 'lucide-react';
 
 const SmartphoneDataTab: React.FC = () => {
   const [dataset, setDataset] = useState<any[] | null>(null);
   const [trainedModel, setTrainedModel] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState('data-upload');
+  const { toast } = useToast();
   
   const handleDatasetProcessed = (data: any[]) => {
     setDataset(data);

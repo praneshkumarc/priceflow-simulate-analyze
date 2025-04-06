@@ -77,7 +77,7 @@ export interface SimulationResult {
   expectedSales: number;
   expectedRevenue: number;
   expectedProfit: number;
-  productCost: number; // Changed from optional to required
+  productCost: number; // Required field
 }
 
 // Analysis types
@@ -93,7 +93,7 @@ export interface PricePrediction {
   optimalPrice: number;
   confidence: number;
   factors: PriceFactors;
-  productCost: number; // Changed from optional to required
+  productCost: number; // Required field
 }
 
 // Data processing types
