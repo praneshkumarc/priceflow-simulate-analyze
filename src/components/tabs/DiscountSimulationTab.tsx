@@ -176,11 +176,8 @@ const DiscountSimulationTab: React.FC = () => {
     
     try {
       const result = dataService.simulateDiscount(params, originalPrice);
-      const simulationResultWithCost = {
-        ...result,
-        productCost: originalCost
-      };
-      setSimulations(prev => [...prev, simulationResultWithCost]);
+      result.productCost = originalCost;
+      setSimulations(prev => [...prev, result]);
       
       if (simulations.length === 0) {
         setCompareMode(true);
@@ -222,8 +219,7 @@ const DiscountSimulationTab: React.FC = () => {
     const comparisonData = simulations.map((sim, index) => {
       const simulationUnits = sim.expectedSales;
       const simulationRevenue = sim.discountedPrice * simulationUnits;
-      const simulationCost = sim.productCost !== undefined ? sim.productCost : originalCost;
-      const simulationProfit = (sim.discountedPrice - simulationCost) * simulationUnits;
+      const simulationProfit = (sim.discountedPrice - (sim.productCost || originalCost)) * simulationUnits;
       
       return {
         name: `Scenario ${index + 1}`,
