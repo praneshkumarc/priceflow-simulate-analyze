@@ -1,4 +1,3 @@
-
 // Product Data Types
 export interface Product {
   id: string;
@@ -77,6 +76,7 @@ export interface SimulationResult {
   expectedSales: number;
   expectedRevenue: number;
   expectedProfit: number;
+  productCost?: number; // Adding optional productCost property
 }
 
 // Analysis types
@@ -92,6 +92,7 @@ export interface PricePrediction {
   optimalPrice: number;
   confidence: number;
   factors: PriceFactors;
+  productCost?: number; // Adding optional productCost property
 }
 
 // Data processing types
