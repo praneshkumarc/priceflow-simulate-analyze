@@ -1,4 +1,3 @@
-
 // Product Data Types
 export interface Product {
   id: string;
@@ -77,7 +76,7 @@ export interface SimulationResult {
   expectedSales: number;
   expectedRevenue: number;
   expectedProfit: number;
-  productCost: number; // Required field
+  productCost?: number; // Adding optional productCost property
 }
 
 // Analysis types
@@ -93,7 +92,7 @@ export interface PricePrediction {
   optimalPrice: number;
   confidence: number;
   factors: PriceFactors;
-  productCost: number; // Required field
+  productCost?: number; // Adding optional productCost property
 }
 
 // Data processing types
@@ -140,5 +139,5 @@ export interface SmartphoneInputData {
   "Seasonal Effect"?: number;
   "Competitor Price"?: number;
   "Demand Level"?: number;
-  year_of_sale?: number;
+  year_of_sale?: number; // Added this property
 }

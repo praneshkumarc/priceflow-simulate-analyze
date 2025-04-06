@@ -110,11 +110,6 @@ const SalesAnalysisTab: React.FC = () => {
   // COLORS for pie chart
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
   
-  // Function to handle timeframe change
-  const handleTimeframeChange = (value: string) => {
-    setTimeframe(value as 'all' | '30d' | '90d' | '180d');
-  };
-  
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
@@ -123,7 +118,7 @@ const SalesAnalysisTab: React.FC = () => {
             value={selectedProductId}
             onValueChange={setSelectedProductId}
           >
-            <SelectTrigger className="w-full">
+            <SelectTrigger>
               <SelectValue placeholder="Select a product to analyze" />
             </SelectTrigger>
             <SelectContent>
@@ -136,35 +131,19 @@ const SalesAnalysisTab: React.FC = () => {
           </Select>
         </div>
         
-        <div className="w-full md:w-auto">
-          <TabsList className="w-full md:w-auto grid grid-cols-4">
-            <TabsTrigger 
-              value="all" 
-              className={timeframe === 'all' ? 'data-[state=active]:bg-primary' : ''}
-              onClick={() => handleTimeframeChange('all')}
-            >
+        <div>
+          <TabsList>
+            <TabsTrigger value="all" onClick={() => setTimeframe('all')}>
               All Time
             </TabsTrigger>
-            <TabsTrigger 
-              value="180d" 
-              className={timeframe === '180d' ? 'data-[state=active]:bg-primary' : ''}
-              onClick={() => handleTimeframeChange('180d')}
-            >
-              180d
+            <TabsTrigger value="180d" onClick={() => setTimeframe('180d')}>
+              Last 180 Days
             </TabsTrigger>
-            <TabsTrigger 
-              value="90d" 
-              className={timeframe === '90d' ? 'data-[state=active]:bg-primary' : ''}
-              onClick={() => handleTimeframeChange('90d')}
-            >
-              90d
+            <TabsTrigger value="90d" onClick={() => setTimeframe('90d')}>
+              Last 90 Days
             </TabsTrigger>
-            <TabsTrigger 
-              value="30d" 
-              className={timeframe === '30d' ? 'data-[state=active]:bg-primary' : ''}
-              onClick={() => handleTimeframeChange('30d')}
-            >
-              30d
+            <TabsTrigger value="30d" onClick={() => setTimeframe('30d')}>
+              Last 30 Days
             </TabsTrigger>
           </TabsList>
         </div>
@@ -175,61 +154,51 @@ const SalesAnalysisTab: React.FC = () => {
           <CardHeader>
             <CardTitle>Sales Trends</CardTitle>
             <CardDescription>
-              {selectedProductId === 'all' ? 'All Products' : iPhoneModels.find(p => p.id === selectedProductId)?.name || 'Selected Product'}
+              {selectedProductId === 'all' ? 'All Products' : iPhoneModels.find(p => p.id === selectedProductId)?.name}
               {' - '}
               {timeframe === 'all' ? 'All Time' : `Last ${timeframe.replace('d', ' Days')}`}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-[300px]">
-              {loading ? (
-                <div className="flex items-center justify-center h-full">
-                  <p>Loading sales data...</p>
-                </div>
-              ) : salesTrends.length === 0 ? (
-                <div className="flex items-center justify-center h-full">
-                  <p className="text-muted-foreground">No sales data available for the selected filters.</p>
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={salesTrends}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis 
-                      dataKey="date" 
-                      tickFormatter={(date) => {
-                        const d = new Date(date);
-                        return `${d.getMonth() + 1}/${d.getDate()}`;
-                      }}
-                    />
-                    <YAxis yAxisId="left" />
-                    <YAxis yAxisId="right" orientation="right" />
-                    <Tooltip
-                      formatter={(value, name) => [
-                        name === 'Revenue' ? formatCurrency(Number(value)) : formatNumber(Number(value)),
-                        name
-                      ]}
-                      labelFormatter={(label) => formatDate(label as string)}
-                    />
-                    <Legend />
-                    <Line 
-                      yAxisId="left"
-                      type="monotone" 
-                      dataKey="revenue" 
-                      stroke="#3aa4ff" 
-                      name="Revenue" 
-                      dot={false}
-                    />
-                    <Line 
-                      yAxisId="right"
-                      type="monotone" 
-                      dataKey="sales" 
-                      stroke="#4ac0c0" 
-                      name="Units Sold" 
-                      dot={false}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              )}
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={salesTrends}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis 
+                    dataKey="date" 
+                    tickFormatter={(date) => {
+                      const d = new Date(date);
+                      return `${d.getMonth() + 1}/${d.getDate()}`;
+                    }}
+                  />
+                  <YAxis yAxisId="left" />
+                  <YAxis yAxisId="right" orientation="right" />
+                  <Tooltip
+                    formatter={(value, name) => [
+                      name === 'Revenue' ? formatCurrency(Number(value)) : formatNumber(Number(value)),
+                      name
+                    ]}
+                    labelFormatter={(label) => formatDate(label as string)}
+                  />
+                  <Legend />
+                  <Line 
+                    yAxisId="left"
+                    type="monotone" 
+                    dataKey="revenue" 
+                    stroke="#3aa4ff" 
+                    name="Revenue" 
+                    dot={false}
+                  />
+                  <Line 
+                    yAxisId="right"
+                    type="monotone" 
+                    dataKey="sales" 
+                    stroke="#4ac0c0" 
+                    name="Units Sold" 
+                    dot={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
             </div>
             
             <div className="grid grid-cols-2 gap-4 mt-4">
@@ -252,37 +221,27 @@ const SalesAnalysisTab: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="h-[300px]">
-              {loading ? (
-                <div className="flex items-center justify-center h-full">
-                  <p>Loading category data...</p>
-                </div>
-              ) : salesByCategory.length === 0 ? (
-                <div className="flex items-center justify-center h-full">
-                  <p className="text-muted-foreground">No category data available.</p>
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={salesByCategory}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                    >
-                      {salesByCategory.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      formatter={(value) => formatCurrency(Number(value))}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              )}
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={salesByCategory}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                  >
+                    {salesByCategory.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value) => formatCurrency(Number(value))}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
             </div>
             
             <div className="mt-4">
