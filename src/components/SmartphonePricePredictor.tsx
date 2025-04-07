@@ -37,9 +37,6 @@ const SmartphonePricePredictor: React.FC<SmartphonePricePredictorProps> = ({ mod
     const price = model.predict(specs);
     setPredictedPrice(price);
     
-    // Estimate production cost (60% of retail price as a default)
-    const estimatedCost = price * 0.6;
-    
     // Save the prediction to the prediction service
     const productId = `smartphone-${specs.processor}-${specs.ram}-${specs.storage}`;
     const prediction = {
@@ -52,8 +49,7 @@ const SmartphonePricePredictor: React.FC<SmartphonePricePredictorProps> = ({ mod
         competitorInfluence: 0.3,
         seasonalityFactor: 0.6,
         marginOptimization: 0.7
-      },
-      productCost: estimatedCost // Adding the required productCost property
+      }
     };
     
     predictionService.savePrediction(prediction);
@@ -93,7 +89,7 @@ const SmartphonePricePredictor: React.FC<SmartphonePricePredictorProps> = ({ mod
                   <SelectValue placeholder="Select RAM" />
                 </SelectTrigger>
                 <SelectContent>
-                  {['4GB', '6GB', '8GB', '12GB', '16GB'].map(option => (
+                  {ramOptions.map(option => (
                     <SelectItem key={option} value={option}>{option}</SelectItem>
                   ))}
                 </SelectContent>
@@ -110,7 +106,7 @@ const SmartphonePricePredictor: React.FC<SmartphonePricePredictorProps> = ({ mod
                   <SelectValue placeholder="Select Processor" />
                 </SelectTrigger>
                 <SelectContent>
-                  {['MediaTek Helio', 'Snapdragon 765', 'Snapdragon 888', 'Snapdragon 8 Gen 1', 'A14 Bionic', 'A15 Bionic', 'Exynos 2200'].map(option => (
+                  {processorOptions.map(option => (
                     <SelectItem key={option} value={option}>{option}</SelectItem>
                   ))}
                 </SelectContent>
@@ -127,7 +123,7 @@ const SmartphonePricePredictor: React.FC<SmartphonePricePredictorProps> = ({ mod
                   <SelectValue placeholder="Select Storage" />
                 </SelectTrigger>
                 <SelectContent>
-                  {['64GB', '128GB', '256GB', '512GB', '1TB'].map(option => (
+                  {storageOptions.map(option => (
                     <SelectItem key={option} value={option}>{option}</SelectItem>
                   ))}
                 </SelectContent>
@@ -144,7 +140,7 @@ const SmartphonePricePredictor: React.FC<SmartphonePricePredictorProps> = ({ mod
                   <SelectValue placeholder="Select Display" />
                 </SelectTrigger>
                 <SelectContent>
-                  {['5.4 inch LCD', '6.1 inch OLED', '6.5 inch AMOLED', '6.7 inch LTPO'].map(option => (
+                  {displayOptions.map(option => (
                     <SelectItem key={option} value={option}>{option}</SelectItem>
                   ))}
                 </SelectContent>

@@ -1,208 +1,176 @@
 
 import React from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/hooks/use-toast';
-import { fromTable } from '@/integrations/supabase/client';
-import { CheckCircle, XCircle, AlertCircle } from 'lucide-react';
-import { ResellData } from '@/types/resell';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { ResellCalculation } from '@/types';
 import { Button } from '@/components/ui/button';
-import { calculateResellPrice, evaluateResellPrice } from '@/utils/resellCalculations';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from '@/components/ui/alert';
+import { CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface ResellResultProps {
-  resellData: {
-    id: string;
-    phoneModel: string;
-    condition: string;
-    customConditionDescription?: string;
-    purchaseYear: number;
-    desiredPrice: number;
-    calculatedPrice: number;
-  };
-  onBack: () => void;
-  onAccept?: () => void;
-  onRevise?: () => void;
+  calculation: ResellCalculation;
+  onReset: () => void;
 }
 
-export default function ResellResult({ 
-  resellData, 
-  onBack, 
-  onAccept, 
-  onRevise 
-}: ResellResultProps) {
-  const { user } = useAuth();
-  const { toast } = useToast();
-  
-  const evaluation = evaluateResellPrice(
-    resellData.calculatedPrice,
-    resellData.desiredPrice
-  );
-  
-  const handleAccept = async () => {
-    if (!user) {
-      toast({
-        title: "Authentication Required",
-        description: "Please login to complete this action",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    try {
-      const { error } = await fromTable<ResellData>('resell_data')
-        .update({ status: 'accepted' })
-        .eq('id', resellData.id);
-      
-      if (error) {
-        console.error('Error accepting offer:', error);
-        toast({
-          title: "Error",
-          description: "Failed to accept offer",
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      toast({
-        title: "Success",
-        description: "You've accepted our offer. We'll contact you with next steps.",
-      });
-      
-      if (onAccept) onAccept();
-    } catch (error) {
-      console.error('Exception accepting offer:', error);
-      toast({
-        title: "Error",
-        description: "Failed to accept offer",
-        variant: "destructive",
-      });
+const ResellResult: React.FC<ResellResultProps> = ({ calculation, onReset }) => {
+  const formatCurrency = (value: number) => {
+    return value.toLocaleString('en-US', {
+      style: 'currency',
+      currency: 'USD'
+    });
+  };
+
+  const formatPercentage = (value: number) => {
+    return `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
+  };
+
+  const getStatusColor = () => {
+    switch (calculation.decision) {
+      case 'Approved':
+        return 'bg-green-50 border-green-200';
+      case 'Counteroffer':
+        return 'bg-yellow-50 border-yellow-200';
+      case 'Rejected':
+        return 'bg-red-50 border-red-200';
+      default:
+        return '';
     }
   };
-  
-  const handleRevise = async () => {
-    if (!user) {
-      toast({
-        title: "Authentication Required",
-        description: "Please login to complete this action",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    if (onRevise) onRevise();
-  };
-  
+
   const getStatusIcon = () => {
-    switch (evaluation.decision) {
-      case 'accept':
-        return <CheckCircle className="h-12 w-12 text-green-500" />;
-      case 'counter':
-        return <AlertCircle className="h-12 w-12 text-yellow-500" />;
-      case 'reject':
-        return <XCircle className="h-12 w-12 text-red-500" />;
+    switch (calculation.decision) {
+      case 'Approved':
+        return <CheckCircle2 className="h-5 w-5 text-green-600" />;
+      case 'Counteroffer':
+        return <AlertTriangle className="h-5 w-5 text-yellow-600" />;
+      case 'Rejected':
+        return <XCircle className="h-5 w-5 text-red-600" />;
       default:
         return null;
     }
   };
-  
-  const getStatusColor = () => {
-    switch (evaluation.decision) {
-      case 'accept':
-        return "bg-green-50 border-green-200";
-      case 'counter':
-        return "bg-yellow-50 border-yellow-200";
-      case 'reject':
-        return "bg-red-50 border-red-200";
+
+  const getStatusTitle = () => {
+    switch (calculation.decision) {
+      case 'Approved':
+        return 'Offer Approved';
+      case 'Counteroffer':
+        return 'Counteroffer';
+      case 'Rejected':
+        return 'Offer Rejected';
       default:
-        return "";
+        return '';
     }
   };
-  
+
   return (
-    <Card className={`w-full border-2 ${getStatusColor()}`}>
-      <CardHeader className="flex flex-row items-center gap-4">
+    <div className="space-y-6">
+      <Alert className={getStatusColor()}>
         {getStatusIcon()}
-        <div>
-          <CardTitle>Resell Evaluation</CardTitle>
-          <CardDescription>
-            {evaluation.decision === 'accept' 
-              ? "Your offer has been accepted!" 
-              : evaluation.decision === 'counter' 
-                ? "We have a counter-offer for you" 
-                : "We cannot accept your offer"}
-          </CardDescription>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium text-muted-foreground">Phone Model</h3>
-            <p className="font-medium">{resellData.phoneModel}</p>
-          </div>
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium text-muted-foreground">Condition</h3>
-            <p className="font-medium">{resellData.condition}</p>
-          </div>
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium text-muted-foreground">Purchase Year</h3>
-            <p className="font-medium">{resellData.purchaseYear}</p>
-          </div>
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium text-muted-foreground">Age</h3>
-            <p className="font-medium">{new Date().getFullYear() - resellData.purchaseYear} years</p>
-          </div>
-        </div>
-        
-        <div className="pt-4 border-t">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <h3 className="text-sm font-medium text-muted-foreground">Your Price</h3>
-              <p className="text-xl font-bold">${resellData.desiredPrice.toFixed(2)}</p>
+        <AlertTitle>{getStatusTitle()}</AlertTitle>
+        <AlertDescription>{calculation.message}</AlertDescription>
+      </Alert>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Your Offer</CardTitle>
+            <CardDescription>The price you requested</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">
+              {formatCurrency(calculation.customerPrice)}
             </div>
-            <div className="space-y-2">
-              <h3 className="text-sm font-medium text-muted-foreground">Our Calculated Price</h3>
-              <p className="text-xl font-bold">${resellData.calculatedPrice.toFixed(2)}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Our Calculated Value</CardTitle>
+            <CardDescription>Based on market analysis</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">
+              {formatCurrency(calculation.calculatedPrice)}
+            </div>
+            <div className={cn(
+              "text-sm mt-1",
+              calculation.percentageDifference > 0 
+                ? "text-red-600" 
+                : calculation.percentageDifference < 0 
+                  ? "text-blue-600" 
+                  : ""
+            )}>
+              {formatPercentage(calculation.percentageDifference)} difference
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Price Calculation Breakdown</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            <div className="flex justify-between pb-2 border-b">
+              <span>Base Market Price:</span>
+              <span className="font-medium">{formatCurrency(calculation.basePrice)}</span>
+            </div>
+            <div className="flex justify-between text-red-600">
+              <span>Year Depreciation:</span>
+              <span>-{formatCurrency(calculation.yearDepreciation)}</span>
+            </div>
+            <div className={cn(
+              "flex justify-between",
+              calculation.demandAdjustment >= 0 ? "text-green-600" : "text-red-600"
+            )}>
+              <span>Demand Adjustment:</span>
+              <span>{calculation.demandAdjustment >= 0 ? '+' : '-'}{formatCurrency(Math.abs(calculation.demandAdjustment))}</span>
+            </div>
+            <div className="flex justify-between text-red-600">
+              <span>Condition Depreciation:</span>
+              <span>-{formatCurrency(calculation.conditionDepreciation)}</span>
+            </div>
+            <div className="flex justify-between text-green-600">
+              <span>Inflation Adjustment:</span>
+              <span>+{formatCurrency(calculation.inflationAdjustment)}</span>
+            </div>
+            <div className="flex justify-between pt-2 border-t text-lg font-bold">
+              <span>Final Calculated Value:</span>
+              <span>{formatCurrency(calculation.calculatedPrice)}</span>
             </div>
           </div>
-          
-          <div className="mt-6 p-4 rounded-md bg-slate-50 border">
-            <h3 className="font-medium mb-2">Evaluation Result</h3>
-            <p>{evaluation.message}</p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Price difference: ${Math.abs(evaluation.priceDifference).toFixed(2)} 
-              ({evaluation.percentageDiff > 0 ? '+' : ''}{evaluation.percentageDiff.toFixed(1)}%)
-            </p>
-          </div>
-        </div>
-      </CardContent>
-      <CardFooter className="flex flex-col sm:flex-row gap-4">
-        <Button variant="outline" onClick={onBack} className="w-full sm:w-auto">
-          Back
-        </Button>
-        
-        {evaluation.decision === 'accept' && (
-          <Button onClick={handleAccept} className="w-full sm:w-auto bg-green-600 hover:bg-green-700">
-            Accept Offer
+        </CardContent>
+        <CardFooter className="flex justify-between">
+          <Button variant="outline" onClick={onReset}>
+            Try Again
           </Button>
-        )}
-        
-        {evaluation.decision === 'counter' && (
-          <>
-            <Button variant="outline" onClick={handleRevise} className="w-full sm:w-auto">
-              Revise Offer
+          {calculation.decision === 'Approved' && (
+            <Button>
+              Accept Offer & Proceed
             </Button>
-            <Button onClick={handleAccept} className="w-full sm:w-auto">
-              Accept Counter-Offer
+          )}
+          {calculation.decision === 'Counteroffer' && (
+            <Button>
+              Accept Counteroffer
             </Button>
-          </>
-        )}
-        
-        {evaluation.decision === 'reject' && (
-          <Button onClick={handleRevise} className="w-full sm:w-auto">
-            Revise Offer
-          </Button>
-        )}
-      </CardFooter>
-    </Card>
+          )}
+        </CardFooter>
+      </Card>
+    </div>
   );
-}
+};
+
+export default ResellResult;

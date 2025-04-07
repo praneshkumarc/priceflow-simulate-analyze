@@ -10,8 +10,10 @@ class PredictionService {
     this.predictedPrices[prediction.productId] = prediction.optimalPrice;
     this.predictedProducts[prediction.productId] = prediction;
     
-    // Store the product cost
-    this.productCosts[prediction.productId] = prediction.productCost;
+    // If the prediction contains cost information, store it
+    if (prediction.productCost !== undefined) {
+      this.productCosts[prediction.productId] = prediction.productCost;
+    }
     
     console.log("Prediction saved:", prediction);
     console.log("Current predictions:", this.predictedPrices);
