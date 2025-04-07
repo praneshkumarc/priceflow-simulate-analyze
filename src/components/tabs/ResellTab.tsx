@@ -3,9 +3,11 @@ import React, { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import ResellForm from '@/components/ResellForm';
 import ResellResult from '@/components/ResellResult';
-import { ResellCalculation, ResellSubmission, SmartphoneInputData } from '@/types';
+import { ResellCalculation, ResellSubmission } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { dataService } from '@/services/dataService';
+import { Button } from '@/components/ui/button';
+import { CheckCircle2 } from 'lucide-react';
 
 const ResellTab: React.FC = () => {
   const [calculation, setCalculation] = useState<ResellCalculation | null>(null);
