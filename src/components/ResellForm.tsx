@@ -68,7 +68,8 @@ export default function ResellForm({ onSubmit, loading = false }: ResellFormProp
         }
         
         if (smartphones && smartphones.length > 0) {
-          const modelList = smartphones.map(phone => `${phone.brand} ${phone.model}`);
+          // Explicitly type and map the smartphones data to string[]
+          const modelList = smartphones.map((phone: any) => `${phone.brand} ${phone.model}`);
           setModels([...new Set(modelList)]);
         } else {
           // If no models in database, provide some sample models
