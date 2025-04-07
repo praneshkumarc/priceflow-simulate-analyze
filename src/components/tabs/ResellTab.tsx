@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import ResellForm from '@/components/ResellForm';
@@ -73,6 +72,7 @@ const ResellTab: React.FC = () => {
     saveDatasetToSupabase();
   }, []);
   
+  // Calculate resell value function
   const calculateResellValue = async (submission: ResellSubmission): Promise<ResellCalculation | null> => {
     // Get the dataset to validate the phone model
     const dataset = dataService.getDataset();
