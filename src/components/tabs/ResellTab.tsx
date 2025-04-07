@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import ResellForm from '@/components/ResellForm';
 import ResellResult from '@/components/ResellResult';
 import { ResellCalculation, ResellSubmission } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { dataService } from '@/services/dataService';
-import { supabase, fromTable } from '@/integrations/supabase/client';
 
 const ResellTab: React.FC = () => {
   const [calculation, setCalculation] = useState<ResellCalculation | null>(null);
@@ -13,67 +12,7 @@ const ResellTab: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
   
-  // Save dataset to Supabase if not already done
-  useEffect(() => {
-    const saveDatasetToSupabase = async () => {
-      const dataset = dataService.getDataset();
-      
-      // Check if we have data already in the smartphone_data table
-      const { data: existingData, error: fetchError } = await fromTable('smartphone_data')
-        .select('id')
-        .limit(1);
-        
-      if (fetchError) {
-        console.error('Error checking for existing data:', fetchError);
-        return;
-      }
-      
-      // If we already have data, don't insert again
-      if (existingData && existingData.length > 0) {
-        return;
-      }
-      
-      // Insert dataset into Supabase
-      for (const item of dataset) {
-        try {
-          const userId = (await supabase.auth.getUser()).data.user?.id;
-          if (!userId) {
-            console.error('User is not authenticated');
-            return;
-          }
-          
-          const { error } = await fromTable('smartphone_data')
-            .insert({
-              brand: item.Brand || 'Unknown',
-              model: item.Model || 'Unknown',
-              market_price: typeof item.Price === 'string' ? parseFloat(item.Price) : item.Price,
-              specifications: {
-                storage: item.Specifications?.Storage || '',
-                ram: item.Specifications?.RAM || '',
-                processor: item.Specifications?.['Processor Type'] || '',
-                display: item.Specifications?.['Display Hz'] ? `${item.Specifications?.['Display Hz']}Hz` : '',
-                camera: item.Specifications?.['Camera MP'] ? `${item.Specifications?.['Camera MP']}MP` : '',
-                battery: item.Specifications?.['Battery Capacity'] || '',
-                os: item.Specifications?.OS || '',
-                color: item.Specifications?.Color || ''
-              },
-              user_id: userId
-            });
-            
-          if (error) {
-            console.error('Error inserting smartphone data:', error);
-          }
-        } catch (err) {
-          console.error('Error in Supabase operation:', err);
-        }
-      }
-    };
-    
-    saveDatasetToSupabase();
-  }, []);
-  
-  // Calculate resell value function
-  const calculateResellValue = async (submission: ResellSubmission): Promise<ResellCalculation | null> => {
+  const calculateResellValue = (submission: ResellSubmission): ResellCalculation | null => {
     // Get the dataset to validate the phone model
     const dataset = dataService.getDataset();
     
@@ -178,33 +117,6 @@ const ResellTab: React.FC = () => {
       message = `Your price is ${Math.round(Math.abs(percentageDifference))}% lower than our fair market value. We suggest ${roundedCalculatedPrice.toLocaleString('en-US', {style: 'currency', currency: 'USD'})}.`;
     }
     
-    // Save to Supabase
-    try {
-      const userId = (await supabase.auth.getUser()).data.user?.id;
-      if (!userId) {
-        console.error('User is not authenticated');
-        return null;
-      }
-      
-      const { error } = await fromTable('resell_data')
-        .insert({
-          phone_model: submission.phoneModel,
-          condition: submission.condition,
-          custom_condition_description: submission.customConditionDescription,
-          purchase_year: submission.purchaseYear,
-          desired_price: submission.desiredPrice,
-          calculated_price: roundedCalculatedPrice,
-          status: decision.toLowerCase(),
-          user_id: userId
-        });
-        
-      if (error) {
-        console.error('Error saving resell data:', error);
-      }
-    } catch (err) {
-      console.error('Error in Supabase operation:', err);
-    }
-    
     return {
       basePrice,
       yearDepreciation,
@@ -224,8 +136,8 @@ const ResellTab: React.FC = () => {
     setIsCalculating(true);
     
     // Simulate API call with a timeout
-    setTimeout(async () => {
-      const result = await calculateResellValue(submission);
+    setTimeout(() => {
+      const result = calculateResellValue(submission);
       if (result) {
         setCalculation(result);
         toast({
@@ -241,82 +153,38 @@ const ResellTab: React.FC = () => {
     setCalculation(null);
   };
   
-  const handleAcceptOffer = async () => {
+  const handleAcceptOffer = () => {
     if (!calculation) return;
     
     setIsProcessing(true);
     
-    try {
-      const userId = (await supabase.auth.getUser()).data.user?.id;
-      if (!userId) {
-        console.error('User is not authenticated');
-        return;
-      }
-      
-      // Update status in Supabase
-      const { error } = await fromTable('resell_data')
-        .update({ status: 'accepted' })
-        .eq('calculated_price', calculation.calculatedPrice)
-        .eq('desired_price', calculation.customerPrice);
-        
-      if (error) throw error;
-      
+    // Simulate API call to accept the offer
+    setTimeout(() => {
       toast({
         title: "Offer Accepted",
         description: `Your resell request for ${calculation.customerPrice.toLocaleString('en-US', {style: 'currency', currency: 'USD'})} has been processed successfully.`,
       });
-      
+      setIsProcessing(false);
       // Reset form to start again
       setCalculation(null);
-    } catch (error) {
-      console.error('Error accepting offer:', error);
-      toast({
-        title: "Error",
-        description: "There was a problem processing your request. Please try again.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsProcessing(false);
-    }
+    }, 1000);
   };
   
-  const handleAcceptCounteroffer = async () => {
+  const handleAcceptCounteroffer = () => {
     if (!calculation) return;
     
     setIsProcessing(true);
     
-    try {
-      const userId = (await supabase.auth.getUser()).data.user?.id;
-      if (!userId) {
-        console.error('User is not authenticated');
-        return;
-      }
-      
-      // Update status in Supabase
-      const { error } = await fromTable('resell_data')
-        .update({ status: 'counteroffer_accepted' })
-        .eq('calculated_price', calculation.calculatedPrice)
-        .eq('desired_price', calculation.customerPrice);
-        
-      if (error) throw error;
-      
+    // Simulate API call to accept the counteroffer
+    setTimeout(() => {
       toast({
         title: "Counteroffer Accepted",
         description: `You've accepted our offer of ${calculation.calculatedPrice.toLocaleString('en-US', {style: 'currency', currency: 'USD'})}. Your request is being processed.`,
       });
-      
+      setIsProcessing(false);
       // Reset form to start again
       setCalculation(null);
-    } catch (error) {
-      console.error('Error accepting counteroffer:', error);
-      toast({
-        title: "Error",
-        description: "There was a problem processing your request. Please try again.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsProcessing(false);
-    }
+    }, 1000);
   };
   
   return (
