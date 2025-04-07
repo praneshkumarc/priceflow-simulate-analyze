@@ -53,7 +53,7 @@ export default function ResellForm({ onSubmit, loading = false }: ResellFormProp
     const fetchPhoneModels = async () => {
       try {
         setLoadingModels(true);
-        const { data: smartphones, error } = await fromTable<SmartphoneData>('smartphone_data')
+        const { data: smartphones, error } = await fromTable('smartphone_data')
           .select('brand, model')
           .order('brand', { ascending: true });
         
@@ -68,8 +68,10 @@ export default function ResellForm({ onSubmit, loading = false }: ResellFormProp
         }
         
         if (smartphones && smartphones.length > 0) {
-          // Explicitly type and map the smartphones data to string[]
-          const modelList = smartphones.map((phone: any) => `${phone.brand} ${phone.model}`);
+          // Ensure proper typing when mapping smartphone data
+          const modelList: string[] = smartphones.map((phone: {brand: string, model: string}) => 
+            `${phone.brand} ${phone.model}`
+          );
           setModels([...new Set(modelList)]);
         } else {
           // If no models in database, provide some sample models
