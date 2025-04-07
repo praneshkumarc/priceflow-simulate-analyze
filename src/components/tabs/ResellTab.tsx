@@ -6,7 +6,7 @@ import ResellResult from '@/components/ResellResult';
 import { ResellCalculation, ResellSubmission } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { dataService } from '@/services/dataService';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, fromTable } from '@/integrations/supabase/client';
 
 const ResellTab: React.FC = () => {
   const [calculation, setCalculation] = useState<ResellCalculation | null>(null);
@@ -20,8 +20,7 @@ const ResellTab: React.FC = () => {
       const dataset = dataService.getDataset();
       
       // Check if we have data already in the smartphone_data table
-      const { data: existingData, error: fetchError } = await supabase
-        .from('smartphone_data')
+      const { data: existingData, error: fetchError } = await fromTable('smartphone_data')
         .select('id')
         .limit(1);
         
@@ -37,26 +36,36 @@ const ResellTab: React.FC = () => {
       
       // Insert dataset into Supabase
       for (const item of dataset) {
-        const { error } = await supabase
-          .from('smartphone_data')
-          .insert({
-            brand: item.Brand || 'Unknown',
-            model: item.Model || 'Unknown',
-            market_price: typeof item.Price === 'string' ? parseFloat(item.Price) : item.Price,
-            specifications: {
-              storage: item.Specifications?.Storage || '',
-              ram: item.Specifications?.RAM || '',
-              processor: item.Specifications?.['Processor Type'] || '',
-              display: item.Specifications?.['Display Hz'] ? `${item.Specifications?.['Display Hz']}Hz` : '',
-              camera: item.Specifications?.['Camera MP'] ? `${item.Specifications?.['Camera MP']}MP` : '',
-              battery: item.Specifications?.['Battery Capacity'] || '',
-              os: item.Specifications?.OS || '',
-              color: item.Specifications?.Color || ''
-            }
-          });
+        try {
+          const userId = (await supabase.auth.getUser()).data.user?.id;
+          if (!userId) {
+            console.error('User is not authenticated');
+            return;
+          }
           
-        if (error) {
-          console.error('Error inserting smartphone data:', error);
+          const { error } = await fromTable('smartphone_data')
+            .insert({
+              brand: item.Brand || 'Unknown',
+              model: item.Model || 'Unknown',
+              market_price: typeof item.Price === 'string' ? parseFloat(item.Price) : item.Price,
+              specifications: {
+                storage: item.Specifications?.Storage || '',
+                ram: item.Specifications?.RAM || '',
+                processor: item.Specifications?.['Processor Type'] || '',
+                display: item.Specifications?.['Display Hz'] ? `${item.Specifications?.['Display Hz']}Hz` : '',
+                camera: item.Specifications?.['Camera MP'] ? `${item.Specifications?.['Camera MP']}MP` : '',
+                battery: item.Specifications?.['Battery Capacity'] || '',
+                os: item.Specifications?.OS || '',
+                color: item.Specifications?.Color || ''
+              },
+              user_id: userId
+            });
+            
+          if (error) {
+            console.error('Error inserting smartphone data:', error);
+          }
+        } catch (err) {
+          console.error('Error in Supabase operation:', err);
         }
       }
     };
@@ -171,8 +180,13 @@ const ResellTab: React.FC = () => {
     
     // Save to Supabase
     try {
-      const { error } = await supabase
-        .from('resell_data')
+      const userId = (await supabase.auth.getUser()).data.user?.id;
+      if (!userId) {
+        console.error('User is not authenticated');
+        return null;
+      }
+      
+      const { error } = await fromTable('resell_data')
         .insert({
           phone_model: submission.phoneModel,
           condition: submission.condition,
@@ -180,7 +194,8 @@ const ResellTab: React.FC = () => {
           purchase_year: submission.purchaseYear,
           desired_price: submission.desiredPrice,
           calculated_price: roundedCalculatedPrice,
-          status: decision.toLowerCase()
+          status: decision.toLowerCase(),
+          user_id: userId
         });
         
       if (error) {
@@ -232,9 +247,14 @@ const ResellTab: React.FC = () => {
     setIsProcessing(true);
     
     try {
+      const userId = (await supabase.auth.getUser()).data.user?.id;
+      if (!userId) {
+        console.error('User is not authenticated');
+        return;
+      }
+      
       // Update status in Supabase
-      const { error } = await supabase
-        .from('resell_data')
+      const { error } = await fromTable('resell_data')
         .update({ status: 'accepted' })
         .eq('calculated_price', calculation.calculatedPrice)
         .eq('desired_price', calculation.customerPrice);
@@ -266,9 +286,14 @@ const ResellTab: React.FC = () => {
     setIsProcessing(true);
     
     try {
+      const userId = (await supabase.auth.getUser()).data.user?.id;
+      if (!userId) {
+        console.error('User is not authenticated');
+        return;
+      }
+      
       // Update status in Supabase
-      const { error } = await supabase
-        .from('resell_data')
+      const { error } = await fromTable('resell_data')
         .update({ status: 'counteroffer_accepted' })
         .eq('calculated_price', calculation.calculatedPrice)
         .eq('desired_price', calculation.customerPrice);
