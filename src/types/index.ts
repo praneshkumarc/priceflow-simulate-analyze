@@ -77,7 +77,7 @@ export interface SimulationResult {
   expectedSales: number;
   expectedRevenue: number;
   expectedProfit: number;
-  productCost?: number; // Adding optional productCost property
+  productCost: number; // Required field
 }
 
 // Analysis types
@@ -93,7 +93,7 @@ export interface PricePrediction {
   optimalPrice: number;
   confidence: number;
   factors: PriceFactors;
-  productCost?: number; // Adding optional productCost property
+  productCost: number; // Required field
 }
 
 // Data processing types
@@ -140,31 +140,5 @@ export interface SmartphoneInputData {
   "Seasonal Effect"?: number;
   "Competitor Price"?: number;
   "Demand Level"?: number;
-  year_of_sale?: number; // Added this property
-}
-
-// Resell feature types
-export type PhoneCondition = 'Excellent' | 'Good' | 'Fair' | 'Poor' | 'Custom';
-
-export interface ResellSubmission {
-  phoneModel: string;
-  purchaseYear: number;
-  condition: PhoneCondition;
-  customConditionDescription?: string;
-  desiredPrice: number;
-  billFile?: File;
-}
-
-export interface ResellCalculation {
-  basePrice: number;
-  yearDepreciation: number;
-  demandAdjustment: number;
-  conditionDepreciation: number;
-  inflationAdjustment: number;
-  calculatedPrice: number;
-  withinRange: boolean;
-  percentageDifference: number;
-  customerPrice: number;
-  decision: 'Approved' | 'Counteroffer' | 'Rejected';
-  message: string;
+  year_of_sale?: number;
 }

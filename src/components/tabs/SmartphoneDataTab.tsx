@@ -1,17 +1,17 @@
-
 import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import DatasetUploader from '@/components/DatasetUploader';
 import MLModelTrainer from '@/components/MLModelTrainer';
 import SmartphonePricePredictor from '@/components/SmartphonePricePredictor';
-import { toast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { Smartphone, Database, LineChart } from 'lucide-react';
 
 const SmartphoneDataTab: React.FC = () => {
   const [dataset, setDataset] = useState<any[] | null>(null);
   const [trainedModel, setTrainedModel] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState('data-upload');
+  const { toast } = useToast();
   
   const handleDatasetProcessed = (data: any[]) => {
     setDataset(data);
@@ -32,7 +32,7 @@ const SmartphoneDataTab: React.FC = () => {
   };
   
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       <Card className="bg-white shadow-sm">
         <CardHeader>
           <CardTitle className="text-2xl">Smartphone Price Analysis</CardTitle>
