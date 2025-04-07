@@ -2,7 +2,6 @@
 import React, { useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import Dashboard from '@/components/Dashboard';
-import MobileNav from '@/components/ui/MobileNav';
 import ProductsTab from '@/components/tabs/ProductsTab';
 import DataCollectionTab from '@/components/tabs/DataCollectionTab';
 import PricePredictionTab from '@/components/tabs/PricePredictionTab';
@@ -47,58 +46,42 @@ const tabs: TabType[] = [
 const Index = () => {
   const isMobile = useIsMobile();
   const [selectedTab, setSelectedTab] = useState('dashboard');
-  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Find the current tab based on the selected ID
   const currentTabIndex = tabs.findIndex(tab => tab.id === selectedTab);
   const currentTab = tabs[currentTabIndex >= 0 ? currentTabIndex : 0];
 
-  const handleItemClick = (id: string) => {
-    setSelectedTab(id);
-  };
-
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-gray-50">
-      {/* Mobile Menu Button */}
-      {isMobile && (
-        <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="fixed bottom-4 right-4 bg-primary text-white p-3 rounded-full shadow-lg z-40"
-        >
-          <BarChart4 size={24} />
-        </button>
-      )}
-
-      {/* Mobile Navigation */}
-      {isMobile && sidebarOpen && (
-        <MobileNav
-          navItems={tabs.map(tab => ({ id: tab.id, label: tab.label, href: tab.href }))}
-          selectedItem={selectedTab}
-          handleItemClick={handleItemClick}
-          setIsOpen={setSidebarOpen}
-        />
-      )}
-
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto">
-        {/* Top Navigation */}
+        {/* Top Navigation with Brand */}
         <header className="bg-white border-b p-4">
-          <div className="container mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+          <div className="container mx-auto flex justify-between items-center gap-4">
             <div className="flex items-center">
               <h1 className="text-2xl font-bold">SmartPriceAI</h1>
             </div>
             
+            <div className="flex items-center">
+              <UserProfile />
+            </div>
+          </div>
+        </header>
+
+        {/* Middle Navigation Bar with Tabs */}
+        <div className="bg-white border-b p-2">
+          <div className="container mx-auto">
             <Tabs 
               value={selectedTab} 
               onValueChange={setSelectedTab}
-              className="w-full md:w-auto"
             >
-              <TabsList className="grid grid-cols-4 md:grid-cols-8 w-full">
-                {tabs.map(tab => (
+              <TabsList className="grid grid-cols-8 w-full">
+                {tabs.map((tab, index) => (
+                  // Special styling for resell tab
                   <TabsTrigger 
                     key={tab.id} 
                     value={tab.id}
-                    className="flex items-center gap-1"
+                    className={`flex items-center gap-1 ${tab.id === 'resell' ? 'bg-primary text-primary-foreground hover:bg-primary/90 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground' : ''}`}
                   >
                     <tab.Icon className="h-4 w-4 hidden md:inline" />
                     <span className="truncate">{tab.label}</span>
@@ -106,12 +89,8 @@ const Index = () => {
                 ))}
               </TabsList>
             </Tabs>
-            
-            <div className="flex items-center">
-              <UserProfile />
-            </div>
           </div>
-        </header>
+        </div>
 
         <div className="p-4 md:p-6">
           {/* Breadcrumb */}

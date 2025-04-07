@@ -18,6 +18,7 @@ import {
 import { CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ResellResultProps {
   calculation: ResellCalculation;
@@ -84,24 +85,76 @@ const ResellResult: React.FC<ResellResultProps> = ({
     }
   };
 
-  const handleAcceptCounteroffer = () => {
-    if (onAcceptCounteroffer) {
-      onAcceptCounteroffer();
-    } else {
+  const handleAcceptCounteroffer = async () => {
+    try {
+      // Save the counteroffer acceptance to Supabase
+      const { data, error } = await supabase
+        .from('resell_data')
+        .insert({
+          phone_model: calculation.customerPrice.toString(), // This should be improved with actual phone model data
+          condition: 'Approved via counteroffer',
+          purchase_year: new Date().getFullYear(),
+          desired_price: calculation.customerPrice,
+          calculated_price: calculation.calculatedPrice,
+          status: 'accepted_counteroffer'
+        });
+
+      if (error) {
+        throw error;
+      }
+
       toast({
         title: "Counteroffer Accepted",
         description: `You've accepted our offer of ${formatCurrency(calculation.calculatedPrice)}`,
       });
+
+      // Call the passed callback if it exists
+      if (onAcceptCounteroffer) {
+        onAcceptCounteroffer();
+      }
+    } catch (error) {
+      console.error('Error accepting counteroffer:', error);
+      toast({
+        title: "Error",
+        description: "There was a problem accepting the counteroffer. Please try again.",
+        variant: "destructive"
+      });
     }
   };
 
-  const handleAcceptOffer = () => {
-    if (onAcceptOffer) {
-      onAcceptOffer();
-    } else {
+  const handleAcceptOffer = async () => {
+    try {
+      // Save the offer acceptance to Supabase
+      const { data, error } = await supabase
+        .from('resell_data')
+        .insert({
+          phone_model: calculation.customerPrice.toString(), // This should be improved with actual phone model data
+          condition: 'Approved directly',
+          purchase_year: new Date().getFullYear(),
+          desired_price: calculation.customerPrice,
+          calculated_price: calculation.calculatedPrice,
+          status: 'accepted'
+        });
+
+      if (error) {
+        throw error;
+      }
+
       toast({
         title: "Offer Accepted",
         description: "Your resell request has been processed successfully.",
+      });
+
+      // Call the passed callback if it exists
+      if (onAcceptOffer) {
+        onAcceptOffer();
+      }
+    } catch (error) {
+      console.error('Error accepting offer:', error);
+      toast({
+        title: "Error",
+        description: "There was a problem accepting the offer. Please try again.",
+        variant: "destructive"
       });
     }
   };
