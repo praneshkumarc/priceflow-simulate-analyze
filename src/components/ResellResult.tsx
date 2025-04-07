@@ -17,13 +17,17 @@ import {
 } from '@/components/ui/alert';
 import { CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 interface ResellResultProps {
   calculation: ResellCalculation;
   onReset: () => void;
+  onAcceptOffer: (calculation: ResellCalculation) => void;
 }
 
-const ResellResult: React.FC<ResellResultProps> = ({ calculation, onReset }) => {
+const ResellResult: React.FC<ResellResultProps> = ({ calculation, onReset, onAcceptOffer }) => {
+  const { toast } = useToast();
+  
   const formatCurrency = (value: number) => {
     return value.toLocaleString('en-US', {
       style: 'currency',
@@ -72,6 +76,14 @@ const ResellResult: React.FC<ResellResultProps> = ({ calculation, onReset }) => 
       default:
         return '';
     }
+  };
+
+  const handleAcceptOffer = () => {
+    onAcceptOffer(calculation);
+    toast({
+      title: "Offer Accepted",
+      description: "Your transaction has been processed successfully.",
+    });
   };
 
   return (
@@ -158,12 +170,12 @@ const ResellResult: React.FC<ResellResultProps> = ({ calculation, onReset }) => 
             Try Again
           </Button>
           {calculation.decision === 'Approved' && (
-            <Button>
+            <Button onClick={handleAcceptOffer}>
               Accept Offer & Proceed
             </Button>
           )}
           {calculation.decision === 'Counteroffer' && (
-            <Button>
+            <Button onClick={handleAcceptOffer}>
               Accept Counteroffer
             </Button>
           )}

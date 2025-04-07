@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { ChevronRight, MenuIcon } from 'lucide-react';
+import { ChevronRight, MenuIcon, X } from 'lucide-react';
 import Dashboard from '@/components/Dashboard';
 import Sidebar from '@/components/ui/sidebar';
 import MobileNav from '@/components/ui/MobileNav';
@@ -24,6 +24,7 @@ import {
   ShoppingCart,
   RotateCcw
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 export type TabType = {
   id: string;
@@ -55,19 +56,36 @@ const Index = () => {
 
   const handleItemClick = (id: string) => {
     setSelectedTab(id);
+    // Close sidebar after selecting an item
+    setSidebarOpen(false);
+  };
+
+  const toggleSidebar = () => {
+    setSidebarOpen(!sidebarOpen);
   };
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
-      {/* Sidebar */}
+      {/* Sidebar - visible only when sidebarOpen is true */}
       {!isMobile && (
-        <div className="hidden md:flex md:flex-col">
+        <div className={`md:flex md:flex-col transition-all duration-300 ${sidebarOpen ? 'w-64' : 'w-0 overflow-hidden'}`}>
           <Sidebar 
             navItems={tabs.map(tab => ({ id: tab.id, label: tab.label, href: tab.href }))} 
             selectedItem={selectedTab} 
             handleItemClick={handleItemClick} 
           />
         </div>
+      )}
+
+      {/* Sidebar Toggle Button for Desktop */}
+      {!isMobile && (
+        <button
+          onClick={toggleSidebar}
+          className="fixed top-4 left-4 z-40 bg-white p-2 rounded-full shadow-md border border-gray-200"
+          aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
+        >
+          {sidebarOpen ? <X size={20} /> : <MenuIcon size={20} />}
+        </button>
       )}
 
       {/* Mobile Menu Button */}

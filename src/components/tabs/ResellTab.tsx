@@ -10,6 +10,7 @@ import { dataService } from '@/services/dataService';
 const ResellTab: React.FC = () => {
   const [calculation, setCalculation] = useState<ResellCalculation | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
+  const [isCompleted, setIsCompleted] = useState(false);
   const { toast } = useToast();
   
   const calculateResellValue = (submission: ResellSubmission): ResellCalculation | null => {
@@ -151,6 +152,17 @@ const ResellTab: React.FC = () => {
   
   const handleReset = () => {
     setCalculation(null);
+    setIsCompleted(false);
+  };
+
+  const handleAcceptOffer = (calculation: ResellCalculation) => {
+    // Here you would normally send this data to a backend
+    // For now, we'll just mark the transaction as completed
+    setIsCompleted(true);
+    toast({
+      title: "Offer Accepted",
+      description: "Your transaction has been processed successfully. We'll be in touch soon with next steps.",
+    });
   };
   
   return (
@@ -163,10 +175,20 @@ const ResellTab: React.FC = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {calculation ? (
+          {isCompleted ? (
+            <div className="text-center py-8">
+              <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold mb-2">Transaction Complete!</h3>
+              <p className="text-gray-600 mb-6">
+                Thank you for using our resell service. We'll process your device and be in touch shortly.
+              </p>
+              <Button onClick={handleReset}>Sell Another Device</Button>
+            </div>
+          ) : calculation ? (
             <ResellResult 
               calculation={calculation} 
-              onReset={handleReset} 
+              onReset={handleReset}
+              onAcceptOffer={handleAcceptOffer}
             />
           ) : (
             <ResellForm 
