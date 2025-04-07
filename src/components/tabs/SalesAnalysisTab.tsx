@@ -132,20 +132,23 @@ const SalesAnalysisTab: React.FC = () => {
         </div>
         
         <div>
-          <TabsList>
-            <TabsTrigger value="all" onClick={() => setTimeframe('all')}>
-              All Time
-            </TabsTrigger>
-            <TabsTrigger value="180d" onClick={() => setTimeframe('180d')}>
-              Last 180 Days
-            </TabsTrigger>
-            <TabsTrigger value="90d" onClick={() => setTimeframe('90d')}>
-              Last 90 Days
-            </TabsTrigger>
-            <TabsTrigger value="30d" onClick={() => setTimeframe('30d')}>
-              Last 30 Days
-            </TabsTrigger>
-          </TabsList>
+          {/* Wrap TabsList in a Tabs component with a default value */}
+          <Tabs defaultValue="all" value={timeframe} onValueChange={(value) => setTimeframe(value as 'all' | '30d' | '90d' | '180d')}>
+            <TabsList>
+              <TabsTrigger value="all">
+                All Time
+              </TabsTrigger>
+              <TabsTrigger value="180d">
+                Last 180 Days
+              </TabsTrigger>
+              <TabsTrigger value="90d">
+                Last 90 Days
+              </TabsTrigger>
+              <TabsTrigger value="30d">
+                Last 30 Days
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
       </div>
       
