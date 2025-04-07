@@ -11,7 +11,8 @@ const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
-// Simplified helper method for using tables
+// This is a workaround because of TypeScript's limitation with the Database type
+// Using any here as the function is just a convenience wrapper around supabase.from
 export const fromTable = (tableName: string) => {
-  return supabase.from(tableName);
+  return supabase.from(tableName as any);
 };

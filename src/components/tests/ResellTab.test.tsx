@@ -5,6 +5,7 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import ResellTab from '@/components/tabs/ResellTab';
 import { dataService } from '@/services/dataService';
 import { ToastProvider } from '@/components/ui/toast';
+import '@testing-library/jest-dom';
 
 // Mock the toast hook
 vi.mock('@/hooks/use-toast', () => ({
@@ -70,7 +71,7 @@ describe('ResellTab', () => {
     fireEvent.change(screen.getByLabelText('Desired Price ($)'), { target: { value: '500' } });
     
     // Submit the form
-    fireEvent.click(screen.getByText('Get Resell Value'));
+    fireEvent.click(screen.getByText('Calculate Resell Value'));
     
     // Check for loading state
     expect(screen.getByText('Calculating...')).toBeInTheDocument();
@@ -98,7 +99,7 @@ describe('ResellTab', () => {
     fireEvent.change(screen.getByLabelText('Desired Price ($)'), { target: { value: '500' } });
     
     // Submit the form
-    fireEvent.click(screen.getByText('Get Resell Value'));
+    fireEvent.click(screen.getByText('Calculate Resell Value'));
     
     // Fast-forward timers
     vi.runAllTimers();

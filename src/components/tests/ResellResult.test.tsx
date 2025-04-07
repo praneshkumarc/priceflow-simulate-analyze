@@ -1,10 +1,11 @@
 
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { vi, describe, it, expect } from 'vitest';
+import { vi, describe, it, expect, beforeEach } from 'vitest';
 import ResellResult from '@/components/ResellResult';
 import { ResellCalculation } from '@/types';
 import { ToastProvider } from '@/components/ui/toast';
+import '@testing-library/jest-dom';
 
 // Mock the toast hook
 vi.mock('@/hooks/use-toast', () => ({

@@ -1,5 +1,5 @@
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { cn, isMobile } from '@/lib/utils';
 
 describe('Utility functions', () => {

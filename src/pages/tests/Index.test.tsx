@@ -1,8 +1,10 @@
+
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import Index from '@/pages/Index';
 import { BrowserRouter } from 'react-router-dom';
+import '@testing-library/jest-dom';
 
 // Mock components
 vi.mock('@/components/Dashboard', () => ({
