@@ -9,6 +9,157 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      dashboard_data: {
+        Row: {
+          created_at: string
+          id: string
+          metrics: Json | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          metrics?: Json | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          metrics?: Json | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      data_collection: {
+        Row: {
+          column_count: number
+          created_at: string
+          data: Json
+          dataset_name: string
+          dataset_type: string
+          id: string
+          row_count: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          column_count: number
+          created_at?: string
+          data: Json
+          dataset_name: string
+          dataset_type: string
+          id?: string
+          row_count: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          column_count?: number
+          created_at?: string
+          data?: Json
+          dataset_name?: string
+          dataset_type?: string
+          id?: string
+          row_count?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      discount_simulation_data: {
+        Row: {
+          created_at: string
+          discount_percentage: number
+          discount_price: number
+          expected_sales_increase: number | null
+          id: string
+          original_price: number
+          product_id: string | null
+          profit_impact: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          discount_percentage: number
+          discount_price: number
+          expected_sales_increase?: number | null
+          id?: string
+          original_price: number
+          product_id?: string | null
+          profit_impact?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          discount_percentage?: number
+          discount_price?: number
+          expected_sales_increase?: number | null
+          id?: string
+          original_price?: number
+          product_id?: string | null
+          profit_impact?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discount_simulation_data_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "product_data"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      price_prediction_data: {
+        Row: {
+          base_price: number
+          confidence: number | null
+          created_at: string
+          factors: Json | null
+          id: string
+          predicted_price: number
+          product_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          base_price: number
+          confidence?: number | null
+          created_at?: string
+          factors?: Json | null
+          id?: string
+          predicted_price: number
+          product_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          base_price?: number
+          confidence?: number | null
+          created_at?: string
+          factors?: Json | null
+          id?: string
+          predicted_price?: number
+          product_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "price_prediction_data_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "product_data"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       price_predictions: {
         Row: {
           base_price: number
@@ -61,6 +212,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      product_data: {
+        Row: {
+          brand: string
+          category: string | null
+          created_at: string
+          id: string
+          model: string
+          name: string
+          price: number
+          specifications: Json | null
+          stock_quantity: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          brand: string
+          category?: string | null
+          created_at?: string
+          id?: string
+          model: string
+          name: string
+          price: number
+          specifications?: Json | null
+          stock_quantity?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          brand?: string
+          category?: string | null
+          created_at?: string
+          id?: string
+          model?: string
+          name?: string
+          price?: number
+          specifications?: Json | null
+          stock_quantity?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       products: {
         Row: {
@@ -137,6 +330,48 @@ export type Database = {
         }
         Relationships: []
       }
+      resell_data: {
+        Row: {
+          calculated_price: number | null
+          condition: string
+          created_at: string
+          custom_condition_description: string | null
+          desired_price: number
+          id: string
+          phone_model: string
+          purchase_year: number
+          status: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          calculated_price?: number | null
+          condition: string
+          created_at?: string
+          custom_condition_description?: string | null
+          desired_price: number
+          id?: string
+          phone_model: string
+          purchase_year: number
+          status?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          calculated_price?: number | null
+          condition?: string
+          created_at?: string
+          custom_condition_description?: string | null
+          desired_price?: number
+          id?: string
+          phone_model?: string
+          purchase_year?: number
+          status?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       sales: {
         Row: {
           category: string
@@ -176,6 +411,89 @@ export type Database = {
           total_sales?: number
           unit_price?: number
           updated_at?: string
+        }
+        Relationships: []
+      }
+      sales_analysis_data: {
+        Row: {
+          created_at: string
+          customer_type: string | null
+          date: string
+          id: string
+          product_id: string | null
+          quantity: number
+          region: string | null
+          revenue: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          customer_type?: string | null
+          date: string
+          id?: string
+          product_id?: string | null
+          quantity: number
+          region?: string | null
+          revenue: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          customer_type?: string | null
+          date?: string
+          id?: string
+          product_id?: string | null
+          quantity?: number
+          region?: string | null
+          revenue?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_analysis_data_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "product_data"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      smartphone_data: {
+        Row: {
+          brand: string
+          created_at: string
+          id: string
+          market_price: number | null
+          model: string
+          release_year: number | null
+          specifications: Json | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          brand: string
+          created_at?: string
+          id?: string
+          market_price?: number | null
+          model: string
+          release_year?: number | null
+          specifications?: Json | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          brand?: string
+          created_at?: string
+          id?: string
+          market_price?: number | null
+          model?: string
+          release_year?: number | null
+          specifications?: Json | null
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
