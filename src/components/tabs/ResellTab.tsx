@@ -1,15 +1,15 @@
+
 import React, { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import ResellForm from '@/components/ResellForm';
 import ResellResult from '@/components/ResellResult';
-import { ResellCalculation, ResellSubmission } from '@/types';
+import { ResellCalculation, ResellSubmission, SmartphoneInputData } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { dataService } from '@/services/dataService';
 
 const ResellTab: React.FC = () => {
   const [calculation, setCalculation] = useState<ResellCalculation | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
   
   const calculateResellValue = (submission: ResellSubmission): ResellCalculation | null => {
@@ -153,40 +153,6 @@ const ResellTab: React.FC = () => {
     setCalculation(null);
   };
   
-  const handleAcceptOffer = () => {
-    if (!calculation) return;
-    
-    setIsProcessing(true);
-    
-    // Simulate API call to accept the offer
-    setTimeout(() => {
-      toast({
-        title: "Offer Accepted",
-        description: `Your resell request for ${calculation.customerPrice.toLocaleString('en-US', {style: 'currency', currency: 'USD'})} has been processed successfully.`,
-      });
-      setIsProcessing(false);
-      // Reset form to start again
-      setCalculation(null);
-    }, 1000);
-  };
-  
-  const handleAcceptCounteroffer = () => {
-    if (!calculation) return;
-    
-    setIsProcessing(true);
-    
-    // Simulate API call to accept the counteroffer
-    setTimeout(() => {
-      toast({
-        title: "Counteroffer Accepted",
-        description: `You've accepted our offer of ${calculation.calculatedPrice.toLocaleString('en-US', {style: 'currency', currency: 'USD'})}. Your request is being processed.`,
-      });
-      setIsProcessing(false);
-      // Reset form to start again
-      setCalculation(null);
-    }, 1000);
-  };
-  
   return (
     <div className="space-y-6">
       <Card>
@@ -200,14 +166,12 @@ const ResellTab: React.FC = () => {
           {calculation ? (
             <ResellResult 
               calculation={calculation} 
-              onReset={handleReset}
-              onAcceptOffer={handleAcceptOffer}
-              onAcceptCounteroffer={handleAcceptCounteroffer}
+              onReset={handleReset} 
             />
           ) : (
             <ResellForm 
               onSubmit={handleSubmit} 
-              isCalculating={isCalculating || isProcessing} 
+              isCalculating={isCalculating} 
             />
           )}
         </CardContent>

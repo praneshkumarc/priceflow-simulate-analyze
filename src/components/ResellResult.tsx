@@ -17,23 +17,13 @@ import {
 } from '@/components/ui/alert';
 import { CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useToast } from '@/hooks/use-toast';
 
 interface ResellResultProps {
   calculation: ResellCalculation;
   onReset: () => void;
-  onAcceptOffer?: () => void;
-  onAcceptCounteroffer?: () => void;
 }
 
-const ResellResult: React.FC<ResellResultProps> = ({ 
-  calculation, 
-  onReset,
-  onAcceptOffer,
-  onAcceptCounteroffer
-}) => {
-  const { toast } = useToast();
-  
+const ResellResult: React.FC<ResellResultProps> = ({ calculation, onReset }) => {
   const formatCurrency = (value: number) => {
     return value.toLocaleString('en-US', {
       style: 'currency',
@@ -81,28 +71,6 @@ const ResellResult: React.FC<ResellResultProps> = ({
         return 'Offer Rejected';
       default:
         return '';
-    }
-  };
-
-  const handleAcceptCounteroffer = () => {
-    if (onAcceptCounteroffer) {
-      onAcceptCounteroffer();
-    } else {
-      toast({
-        title: "Counteroffer Accepted",
-        description: `You've accepted our offer of ${formatCurrency(calculation.calculatedPrice)}`,
-      });
-    }
-  };
-
-  const handleAcceptOffer = () => {
-    if (onAcceptOffer) {
-      onAcceptOffer();
-    } else {
-      toast({
-        title: "Offer Accepted",
-        description: "Your resell request has been processed successfully.",
-      });
     }
   };
 
@@ -190,12 +158,12 @@ const ResellResult: React.FC<ResellResultProps> = ({
             Try Again
           </Button>
           {calculation.decision === 'Approved' && (
-            <Button onClick={handleAcceptOffer}>
+            <Button>
               Accept Offer & Proceed
             </Button>
           )}
           {calculation.decision === 'Counteroffer' && (
-            <Button onClick={handleAcceptCounteroffer}>
+            <Button>
               Accept Counteroffer
             </Button>
           )}

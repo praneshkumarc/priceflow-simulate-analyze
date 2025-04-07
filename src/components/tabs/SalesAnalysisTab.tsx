@@ -24,7 +24,7 @@ const SalesAnalysisTab: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProductId, setSelectedProductId] = useState<string>('all');
   const [salesTrends, setSalesTrends] = useState<SalesTrend[]>([]);
-  const [timeframe, setTimeframe] = useState<'all' | '30d' | '90d' | '180d' | '365d'>('all');
+  const [timeframe, setTimeframe] = useState<'all' | '30d' | '90d' | '180d'>('all');
   const [salesByCategory, setSalesByCategory] = useState<Array<{
     name: string;
     value: number;
@@ -92,10 +92,6 @@ const SalesAnalysisTab: React.FC = () => {
       const date = new Date();
       date.setDate(now.getDate() - 180);
       startDate = date.toISOString().split('T')[0];
-    } else if (timeframe === '365d') {
-      const date = new Date();
-      date.setDate(now.getDate() - 365);
-      startDate = date.toISOString().split('T')[0];
     }
     
     // Get sales trends for the selected product and timeframe
@@ -136,19 +132,17 @@ const SalesAnalysisTab: React.FC = () => {
         </div>
         
         <div>
-          <Tabs defaultValue="all" value={timeframe} onValueChange={(value) => setTimeframe(value as 'all' | '30d' | '90d' | '180d' | '365d')}>
+          {/* Wrap TabsList in a Tabs component with a default value */}
+          <Tabs defaultValue="all" value={timeframe} onValueChange={(value) => setTimeframe(value as 'all' | '30d' | '90d' | '180d')}>
             <TabsList>
               <TabsTrigger value="all">
                 All Time
               </TabsTrigger>
-              <TabsTrigger value="365d">
-                Last 1 Year
-              </TabsTrigger>
               <TabsTrigger value="180d">
-                Last 6 Months
+                Last 180 Days
               </TabsTrigger>
               <TabsTrigger value="90d">
-                Last 3 Months
+                Last 90 Days
               </TabsTrigger>
               <TabsTrigger value="30d">
                 Last 30 Days
@@ -165,11 +159,7 @@ const SalesAnalysisTab: React.FC = () => {
             <CardDescription>
               {selectedProductId === 'all' ? 'All Products' : iPhoneModels.find(p => p.id === selectedProductId)?.name}
               {' - '}
-              {timeframe === 'all' ? 'All Time' : 
-               timeframe === '365d' ? 'Last 1 Year' :
-               timeframe === '180d' ? 'Last 6 Months' :
-               timeframe === '90d' ? 'Last 3 Months' : 
-               'Last 30 Days'}
+              {timeframe === 'all' ? 'All Time' : `Last ${timeframe.replace('d', ' Days')}`}
             </CardDescription>
           </CardHeader>
           <CardContent>
