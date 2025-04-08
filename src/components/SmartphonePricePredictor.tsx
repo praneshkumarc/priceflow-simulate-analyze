@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
-import { Smartphone } from 'lucide-react';
+import { Smartphone, Cpu } from 'lucide-react';
 import { predictionService } from '@/services/predictionService';
 import { useToast } from '@/hooks/use-toast';
 
@@ -25,6 +25,8 @@ const SmartphonePricePredictor: React.FC<SmartphonePricePredictorProps> = ({ mod
   });
   
   const [predictedPrice, setPredictedPrice] = useState<number | null>(null);
+  const [confidence, setConfidence] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   
   const handleSpecChange = (spec: string, value: string) => {
@@ -34,30 +36,51 @@ const SmartphonePricePredictor: React.FC<SmartphonePricePredictorProps> = ({ mod
   const predictPrice = () => {
     if (!model) return;
     
-    const price = model.predict(specs);
-    setPredictedPrice(price);
+    setIsLoading(true);
     
-    // Save the prediction to the prediction service
-    const productId = `smartphone-${specs.processor}-${specs.ram}-${specs.storage}`;
-    const prediction = {
-      productId,
-      basePrice: price * 0.9, // Just an example base price
-      optimalPrice: price,
-      confidence: 85,
-      factors: {
-        demandCoefficient: 0.8,
-        competitorInfluence: 0.3,
-        seasonalityFactor: 0.6,
-        marginOptimization: 0.7
-      }
-    };
-    
-    predictionService.savePrediction(prediction);
-    
-    toast({
-      title: "Price predicted",
-      description: `Optimal price: ${formatCurrency(price)}`,
-    });
+    try {
+      // Extract and normalize features using our KNN implementation
+      const features = predictionService.extractSmartphoneFeatures(specs);
+      
+      // Use KNN to predict the price
+      const { predictedPrice: knnPrice, confidence: knnConfidence } = 
+        predictionService.predictPriceWithKNN(features, 3);
+      
+      setPredictedPrice(knnPrice);
+      setConfidence(knnConfidence);
+      
+      // Save the prediction to the prediction service
+      const productId = `smartphone-${specs.processor}-${specs.ram}-${specs.storage}`;
+      const prediction = {
+        productId,
+        basePrice: knnPrice * 0.9, // Base price is 90% of the optimal price
+        optimalPrice: knnPrice,
+        confidence: knnConfidence,
+        factors: {
+          demandCoefficient: 0.8,
+          competitorInfluence: 0.3,
+          seasonalityFactor: 0.6,
+          marginOptimization: 0.7
+        },
+        productCost: knnPrice * 0.6 // Estimate cost at 60% of price
+      };
+      
+      predictionService.savePrediction(prediction);
+      
+      toast({
+        title: "Price predicted with KNN",
+        description: `Optimal price: ${formatCurrency(knnPrice)} (${knnConfidence}% confidence)`,
+      });
+    } catch (error) {
+      console.error("KNN prediction error:", error);
+      toast({
+        title: "Prediction error",
+        description: error instanceof Error ? error.message : "An error occurred during prediction",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
   
   const ramOptions = ['4GB', '6GB', '8GB', '12GB', '16GB'];
@@ -73,7 +96,7 @@ const SmartphonePricePredictor: React.FC<SmartphonePricePredictorProps> = ({ mod
           <CardTitle>Smartphone Price Predictor</CardTitle>
         </div>
         <CardDescription>
-          Enter smartphone specifications to predict its optimal price
+          Enter smartphone specifications to predict its optimal price using K-Nearest Neighbors
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -168,16 +191,32 @@ const SmartphonePricePredictor: React.FC<SmartphonePricePredictorProps> = ({ mod
           
           <Button 
             onClick={predictPrice}
-            disabled={!model}
+            disabled={!model || isLoading}
             className="w-full"
           >
-            Predict Price
+            {isLoading ? (
+              <div className="flex items-center">
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Processing...
+              </div>
+            ) : (
+              <>
+                <Cpu className="mr-2 h-4 w-4" />
+                Predict Price with KNN
+              </>
+            )}
           </Button>
           
-          {predictedPrice !== null && (
+          {predictedPrice !== null && confidence !== null && (
             <div className="mt-4 p-4 bg-muted rounded-lg">
-              <h3 className="text-sm font-medium mb-2">Predicted Price</h3>
+              <h3 className="text-sm font-medium mb-2">KNN Predicted Price</h3>
               <div className="text-3xl font-bold text-app-blue-500">{formatCurrency(predictedPrice)}</div>
+              <div className="text-sm text-muted-foreground mt-1">
+                Confidence: {confidence}% · Using 3-Nearest Neighbors algorithm
+              </div>
             </div>
           )}
           
