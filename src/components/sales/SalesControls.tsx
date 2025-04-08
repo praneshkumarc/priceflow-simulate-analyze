@@ -1,12 +1,11 @@
 
 import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import ProductSelect from '@/components/ProductSelect';
-import { Product } from '@/types';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface SalesControlsProps {
-  products: Product[];
   onProductSelect: (productId: string) => void;
   selectedProductId: string;
   timeframe: 'all' | '30d' | '90d' | '180d';
@@ -15,26 +14,46 @@ interface SalesControlsProps {
 }
 
 const SalesControls: React.FC<SalesControlsProps> = ({
-  products,
   onProductSelect,
   selectedProductId,
   timeframe,
   onTimeframeChange,
   loading
 }) => {
+  // Hardcoded iPhone options as specified
+  const iPhoneOptions = [
+    { id: 'all', name: 'All Products' },
+    { id: 'iphone15promax', name: 'Apple iPhone 15 Pro Max' },
+    { id: 'iphone15pro', name: 'Apple iPhone 15 Pro' },
+    { id: 'iphone14promax', name: 'Apple iPhone 14 Pro Max' },
+    { id: 'iphone14pro', name: 'Apple iPhone 14 Pro' },
+    { id: 'iphone11', name: 'Apple iPhone 11' },
+  ];
+
   return (
     <div className="flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
       <div className="w-full md:w-1/3">
         {loading ? (
           <Skeleton className="h-10 w-full" />
         ) : (
-          <ProductSelect
-            products={products}
-            onProductSelect={onProductSelect}
-            selectedProductId={selectedProductId}
-            placeholder="Select a product to analyze"
-            showPrices={false}
-          />
+          <div className="space-y-2">
+            <Label htmlFor="product-select">Select Product</Label>
+            <Select
+              value={selectedProductId}
+              onValueChange={onProductSelect}
+            >
+              <SelectTrigger className="w-full" id="product-select">
+                <SelectValue placeholder="Select a product to analyze" />
+              </SelectTrigger>
+              <SelectContent>
+                {iPhoneOptions.map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         )}
       </div>
       

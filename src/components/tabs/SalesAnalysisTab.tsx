@@ -7,7 +7,6 @@ import { useSalesAnalysis } from '@/hooks/use-sales-analysis';
 
 const SalesAnalysisTab: React.FC = () => {
   const {
-    products,
     selectedProductId,
     salesTrends,
     timeframe,
@@ -24,7 +23,6 @@ const SalesAnalysisTab: React.FC = () => {
   return (
     <div className="space-y-6">
       <SalesControls
-        products={products}
         onProductSelect={handleProductChange}
         selectedProductId={selectedProductId}
         timeframe={timeframe}

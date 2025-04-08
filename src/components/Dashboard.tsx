@@ -7,7 +7,8 @@ import SalesAnalysisTab from './tabs/SalesAnalysisTab';
 import PricePredictionTab from './tabs/PricePredictionTab';
 import DiscountSimulationTab from './tabs/DiscountSimulationTab';
 import ProductsTab from './tabs/ProductsTab';
-import { Database, BarChart, LineChart, Percent, Package, UserRound, LogOut } from 'lucide-react';
+import ResellTab from './tabs/ResellTab';
+import { Database, BarChart, LineChart, Percent, Package, UserRound, LogOut, RotateCcw } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
   DropdownMenu,
@@ -100,7 +101,7 @@ const Dashboard: React.FC = () => {
             className="space-y-6"
           >
             <div className="flex justify-between items-center">
-              <TabsList>
+              <TabsList className="overflow-x-auto flex-nowrap whitespace-nowrap max-w-full">
                 <TabsTrigger value="data-collection" className="px-4 md:px-6 flex items-center gap-1">
                   <Database className="h-4 w-4 hidden md:inline" />
                   Data Collection
@@ -120,6 +121,10 @@ const Dashboard: React.FC = () => {
                 <TabsTrigger value="discount-simulation" className="px-4 md:px-6 flex items-center gap-1">
                   <Percent className="h-4 w-4 hidden md:inline" />
                   Discount Simulation
+                </TabsTrigger>
+                <TabsTrigger value="resell" className="px-4 md:px-6 flex items-center gap-1">
+                  <RotateCcw className="h-4 w-4 hidden md:inline" />
+                  Resell
                 </TabsTrigger>
               </TabsList>
             </div>
@@ -142,6 +147,10 @@ const Dashboard: React.FC = () => {
             
             <TabsContent value="discount-simulation" className="space-y-6">
               <DiscountSimulationTab />
+            </TabsContent>
+            
+            <TabsContent value="resell" className="space-y-6">
+              <ResellTab />
             </TabsContent>
           </Tabs>
         </main>

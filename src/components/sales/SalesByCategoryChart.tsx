@@ -23,8 +23,8 @@ interface SalesByCategoryChartProps {
   loading: boolean;
 }
 
-// COLORS for pie chart
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
+// Updated colors for the three segments: Premium, Mid Range, Budget
+const COLORS = ['#3aa4ff', '#4ac0c0', '#ffbb28'];
 
 const SalesByCategoryChart: React.FC<SalesByCategoryChartProps> = ({
   salesByCategory,
@@ -56,7 +56,7 @@ const SalesByCategoryChart: React.FC<SalesByCategoryChartProps> = ({
                   fill="#8884d8"
                   dataKey="value"
                   label={({ name, percent }) => 
-                    isMobile ? `${(percent * 100).toFixed(0)}%` : `${name}: ${(percent * 100).toFixed(0)}%`
+                    `${name}: ${(percent * 100).toFixed(0)}%`
                   }
                   animationDuration={500}
                 >
@@ -73,6 +73,9 @@ const SalesByCategoryChart: React.FC<SalesByCategoryChartProps> = ({
                           <p className="font-medium">{payload[0].name}</p>
                           <p>Revenue: {formatCurrency(payload[0].value as number)}</p>
                           <p>Units: {formatNumber(payload[0].payload.units)}</p>
+                          <p className="text-sm text-gray-500 mt-1">
+                            {(payload[0].payload.value / salesByCategory.reduce((sum, cat) => sum + cat.value, 0) * 100).toFixed(1)}% of total revenue
+                          </p>
                         </div>
                       );
                     }
